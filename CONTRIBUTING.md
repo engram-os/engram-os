@@ -43,7 +43,7 @@ Unlike the end-user installation (`npx engram-os`), developers should run the sy
 
 ### 1. Clone & Configure
 ```bash
-git clone [engram](https://github.com/VS251/engram-os.git)
+git clone https://github.com/VS251/engram-os.git
 cd engram-os
 ```
 
