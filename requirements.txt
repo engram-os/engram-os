@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+mem0ai
+qdrant-client
+requests
+ollama
+celery==5.3.6
+redis==5.0.1
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
