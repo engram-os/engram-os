@@ -91,7 +91,7 @@ If you prefer to run from source without npx:
 **1. Clone the Repo:**
 
 ```bash
-git clone [https://github.com/VS251/engram-os.git](https://github.com/VS251/engram-os.git)
+git clone https://github.com/VS251/engram-os.git
 cd engram-os
 ```
 
