@@ -79,7 +79,7 @@ export default function SiteFooter() {
                     Engineered for high-liability environments where data privacy is non-negotiable.
                 </p>
                 <div className="flex gap-4 pt-2">
-                    <SocialIcon icon={Github} href="#" />
+                    <SocialIcon icon={Github} href="https://github.com/VS251/engram-os.git" />
                     <SocialIcon icon={Twitter} href="#" />
                     <SocialIcon icon={Linkedin} href="#" />
                 </div>
@@ -89,30 +89,30 @@ export default function SiteFooter() {
             <div className="col-span-1 md:col-span-2 space-y-4">
                 <h4 className="font-bold text-gray-900 text-sm">Product</h4>
                 <ul className="space-y-3 text-sm text-gray-500">
-                    <FooterLink href="#">Download</FooterLink>
-                    <FooterLink href="#">Changelog</FooterLink>
-                    <FooterLink href="#">Documentation</FooterLink>
-                    <FooterLink href="#">Integrations</FooterLink>
+                    <FooterLink href="/download">Download</FooterLink>
+                    <FooterLink href="/changelog">Changelog</FooterLink>
+                    <FooterLink href="/docs">Documentation</FooterLink>
+                    <FooterLink href="/integrations">Integrations</FooterLink>
                 </ul>
             </div>
 
             <div className="col-span-1 md:col-span-2 space-y-4">
                 <h4 className="font-bold text-gray-900 text-sm">Community</h4>
                 <ul className="space-y-3 text-sm text-gray-500">
-                    <FooterLink href="#">GitHub Discussions</FooterLink>
-                    <FooterLink href="#">Discord</FooterLink>
-                    <FooterLink href="#">Contributing</FooterLink>
-                    <FooterLink href="#">Events</FooterLink>
+                    <FooterLink href="#" disabled>GitHub Discussions</FooterLink>
+                    <FooterLink href="#" disabled>Discord</FooterLink>
+                    <FooterLink href="/contributing">Contributing</FooterLink>
+                    <FooterLink href="#" disabled>Events</FooterLink>
                 </ul>
             </div>
 
             <div className="col-span-1 md:col-span-2 space-y-4">
                 <h4 className="font-bold text-gray-900 text-sm">Legal</h4>
                 <ul className="space-y-3 text-sm text-gray-500">
-                    <FooterLink href="#">Privacy Policy</FooterLink>
-                    <FooterLink href="#">Terms of Service</FooterLink>
-                    <FooterLink href="#">Security Audit</FooterLink>
-                    <FooterLink href="#">DPA</FooterLink>
+                    <FooterLink href="/legal/privacy">Privacy Policy</FooterLink>
+                    <FooterLink href="#" disabled>Terms of Service</FooterLink>
+                    <FooterLink href="#" disabled>Security Audit</FooterLink>
+                    <FooterLink href="#" disabled>DPA</FooterLink>
                 </ul>
             </div>
         </div>
@@ -154,7 +154,18 @@ export default function SiteFooter() {
 
 
 
-function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+function FooterLink({ href, children, disabled }: { href: string; children: React.ReactNode;  disabled?: boolean;}) {
+
+    if (disabled) {
+        return (
+            <li>
+                <span className="text-muted-foreground/50 cursor-not-allowed text-sm">
+                {children}
+                </span>
+            </li>
+        );
+    }
+
     return (
         <li>
             <a href={href} className="hover:text-[#F08787] transition-colors flex items-center gap-1 group">

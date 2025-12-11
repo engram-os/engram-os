@@ -1,0 +1,21 @@
+{
+  "name": "engram-os",
+  "version": "1.0.0",
+  "description": "Engram OS Installer",
+  "bin": {
+    "engram": "./bin/index.js"
+  },
+  "scripts": {
+    "start": "node bin/index.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "execa": "^8.0.1",
+    "inquirer": "^9.2.12",
+    "ora": "^7.0.1",
+    "degit": "^2.8.4"
+  },
+  "type": "module"
+}

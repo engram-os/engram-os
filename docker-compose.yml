@@ -20,6 +20,8 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - ./credentials/credentials.json:/app/credentials.json
+      - ./credentials/token.json:/app/token.json
     environment:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
@@ -61,6 +63,8 @@ services:
       - os_layer 
     volumes:
       - .:/app
+      - ./credentials/credentials.json:/app/credentials.json
+      - ./credentials/token.json:/app/token.json
     networks:    
       - ai_os_net
       

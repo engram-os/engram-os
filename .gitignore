@@ -1,6 +1,6 @@
-token.json
-credentials.json
 .env
+credentials/*
+!credentials/.gitkeep
 
 
 __pycache__/
@@ -13,6 +13,8 @@ auth_venv/
 agent_activity.db
 history_copy.db
 celerybeat-schedule
+
+dist/
 
 
 *.log
