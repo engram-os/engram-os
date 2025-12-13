@@ -18,14 +18,19 @@ It features a dual-pipeline RAG memory system, a background nervous system for a
 Get up and running in one command. No complex setup required.
 
 **Prerequisites:**
-* [Docker Desktop](https://www.docker.com/products/docker-desktop) (Must be running)
-* [Node.js](https://nodejs.org/) (For the installer)
+* [Node.js](https://nodejs.org/) (v18 or higher)
+* [Python](https://www.python.org/) (v3.10 or higher)
+* [Git](https://git-scm.com/)
 
 **Run the Installer:**
 ```bash
-npx engram-os
+npx engram-os@latest
 ```
-This command will clone the repository, pull the necessary Docker images (for Llama 3 + Qdrant), and launch the local dashboard.
+This command will:
+1. Download the Engram Core.
+2. Set up the local Python environment.
+3. Launch the Brain (FastAPI) and the Dashboard (Streamlit).
+4. Automatically open your browser to http://localhost:8501.
 
 ## System Architecture
 Engram is built as a distributed microservices architecture orchestrated via Docker Compose.
@@ -95,11 +100,11 @@ git clone https://github.com/VS251/engram-os.git
 cd engram-os
 ```
 
-**2. Generate Secrets:**
+**2. Install Dependencies:**
 
-- Get ```credentials.json``` from Google Cloud Console (Calendar + Gmail scopes).
-
-- Run ```python3 generate_token.py``` to create your local session token.
+```bash
+pip install -r requirements.txt
+```
 
 **3. Launch:**
 
