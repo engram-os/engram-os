@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a problem with Engram
+title: "[Bug]: "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue with Engram 
+
+  - type: checkboxes
+    id: issue-type
+    attributes:
+      label: What does this relate to?
+      options:
+        - label: CLI behavior
+        - label: Installation
+        - label: Documentation
+        - label: Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      placeholder: Describe the problem clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: node -v
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Engram version
+      placeholder: e.g. 1.5.3
+    validations:
+      required: true
