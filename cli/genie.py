@@ -8,6 +8,10 @@ if len(sys.argv) < 2:
 
 broken_command = sys.argv[1]
 
+if len(sys.argv) > 1 and sys.argv[1] == "help":
+    print("🧞 Usage: Type '??' after a failed command to fix it.")
+    sys.exit(0)
+
 try:
     print(f"Genie is thinking... [{broken_command}]")
     response = requests.post(
