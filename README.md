@@ -75,6 +75,21 @@ Engram moves beyond "Chat" by employing active agents that run on a schedule.
 
 - Action: Drafts polite, context-aware replies to urgent emails and saves them to Drafts for human review.
 
+**Terminal Genie**
+- Engram lives in your shell. When a command fails, just ask the Genie.
+
+- Usage:
+Type `??` after any failed command to get an instant fix suggestion from Llama 3.
+
+```bash
+$ git statsu
+git: 'statsu' is not a git command.
+$ ??
+🧞 Genie is thinking...
+✨ Suggested Fix: git status
+Run this command? [Y/n]
+```
+
 ## Usage Guide
 **The Dashboard**
 
