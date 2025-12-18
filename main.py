@@ -11,6 +11,7 @@ from qdrant_client.http import models
 from agents.tasks import run_calendar_agent
 from agents.tasks import test_agent_pulse, run_calendar_agent, run_email_agent 
 from agents.terminal import router as terminal_router
+from agents.spectre import router as spectre_router
 
 
 from agents.tasks import test_agent_pulse 
@@ -22,6 +23,8 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="My Local AI OS")
 
 app.include_router(terminal_router)
+
+app.include_router(spectre_router)
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
