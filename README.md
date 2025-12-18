@@ -93,7 +93,7 @@ Run this command? [Y/n]
 **Engram Spectre (VS Code Extension)**
 - A privacy-first AI pair programmer that lives in your editor.
 
-- Trigger: Command Palette (Spectre: Ask).
+- Trigger: Command Palette (```Spectre: Ask```).
 
 - Logic: Reads your currently selected code and sends it to the local Engram API (Docker).
 
