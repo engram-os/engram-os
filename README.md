@@ -99,8 +99,6 @@ Run this command? [Y/n]
 
 - Action: Explains logic, finds bugs, or refactors code without data ever leaving your machine.
 
-Testing Git Agent.
-
 ## Usage Guide
 **The Dashboard**
 

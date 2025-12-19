@@ -14,6 +14,7 @@ from agents.terminal import router as terminal_router
 from agents.spectre import router as spectre_router
 from systems.visualizer import router as visualizer_router
 from fastapi.middleware.cors import CORSMiddleware
+from agents.git_automator import router as git_router
 
 from agents.tasks import test_agent_pulse 
 
@@ -36,6 +37,8 @@ app.include_router(terminal_router)
 app.include_router(spectre_router)
 
 app.include_router(visualizer_router)
+
+app.include_router(git_router)
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
