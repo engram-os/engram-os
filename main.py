@@ -16,7 +16,8 @@ from systems.visualizer import router as visualizer_router
 from fastapi.middleware.cors import CORSMiddleware
 from agents.git_automator import router as git_router
 from systems.crawler import DocSpider, collection 
-
+from systems.pm_tools import IntegrationManager
+from agents.git_automator import client
 from agents.tasks import test_agent_pulse 
 
 
@@ -102,6 +103,34 @@ def get_embedding(text):
 @app.get("/")
 def read_root():
     return {"status": "Engram is Online", "version": "1.0.0"}
+
+@app.get("/api/integrations/briefing")
+async def daily_briefing():
+    manager = IntegrationManager()
+    tasks = manager.get_combined_briefing_data()
+    
+    if not tasks:
+        return {"briefing": "You have no active tasks assigned in Jira or Linear. Enjoy your day!", "tasks": []}
+
+    task_list_str = "\n".join([f"- [{t.source}] {t.priority}: {t.title} ({t.status})" for t in tasks])
+    
+    prompt = f"""
+    You are an executive assistant. Here are the user's active tasks for today:
+    
+    {task_list_str}
+    
+    Write a concise "Daily Briefing" paragraph (max 3 sentences). 
+    1. Highlight the most critical item first.
+    2. Mention the total count.
+    3. Keep it professional but encouraging.
+    """
+    
+    response = client.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
+    
+    return {
+        "briefing": response['message']['content'],
+        "tasks": tasks
+    }    
 
 # 1. Trigger Crawl
 @app.post("/api/docs/ingest")

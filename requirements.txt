@@ -15,3 +15,5 @@ watchdog
 beautifulsoup4
 requests
 chromadb    
+jira
+requests
