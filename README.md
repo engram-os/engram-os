@@ -138,6 +138,23 @@ feat: Add validation logic to user signup flow
 
 ![](screenshots/Doc-spider.png)
 
+**Daily Briefing & Sync**
+- Engram acts as your "Morning Mission Control," aggregating tasks from your project management tools into a prioritized executive summary.
+
+- Unified Inbox: Normalizes issues from **Linear** and **Jira** into a single, clutter-free stream.
+- AI Executive Summary: Llama 3 reads your open tickets and generates a natural language briefing (e.g., *"You have 3 critical bugs today, focused on the Auth API"*).
+- Live Mission Board: A dedicated dashboard widget with live status tracking and direct links to original tickets.
+
+**Configuration:**
+Add your credentials to `.env` to activate the sync:
+```
+# Project Management Integrations
+LINEAR_KEY=lin_api_...
+JIRA_URL=[https://company.atlassian.net](https://company.atlassian.net)
+JIRA_EMAIL=me@company.com
+JIRA_TOKEN=ATATT3...
+```
+
 ## Usage Guide
 **The Dashboard**
 
