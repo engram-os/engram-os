@@ -6,10 +6,26 @@ if len(sys.argv) < 2:
     print("No command provided.")
     sys.exit(1)
 
-broken_command = sys.argv[1]
+history_blob = sys.argv[1]
+
+candidates = history_blob.split('\n')
+
+broken_command = None
+
+for cmd in reversed(candidates):
+    cmd = cmd.strip()
+    if not cmd or cmd in ["??", "echo ??", "clear"]:
+        continue
+
+    broken_command = cmd
+    break
+
+    if not broken_command:
+        print("Could not find a valid broken command in recent history.")
+        sys.exit(1)    
 
 if len(sys.argv) > 1 and sys.argv[1] == "help":
-    print("🧞 Usage: Type '??' after a failed command to fix it.")
+    print("Usage: Type '??' after a failed command to fix it.")
     sys.exit(0)
 
 try:
