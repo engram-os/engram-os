@@ -170,7 +170,7 @@ Once started, the dashboard opens at ```http://localhost:8501```.
 
 - Thoughts: Type commands directly into the Chat interface (e.g., "Remind me to call Mom").
 
-## Manual Development Setup
+### Manual Development Setup
 If you prefer to run from source without ```npx```:
 
 **1. Clone the Repo:**
