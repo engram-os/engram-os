@@ -36,11 +36,18 @@ def run_email_agent():
         system_prompt = """
         You are an executive email assistant.
         Analyze the incoming email.
-        DECISION:
+
+        GOAL:
         - If it needs a reply, draft a polite, professional, and concise response.
         - If it is spam/notification, return action: "ignore".
+
+        RULES:
+        1. Direct Question/Task -> "draft_reply"
+        2. FYI / Updates -> "draft_reply" (Polite ack)
+        3. Ambiguous -> "draft_reply" (Clarification)
+        4. Spam -> "ignore"
         
-        Output JSON:
+        Format:
         {
             "action": "draft_reply" or "ignore",
             "reply_text": "The full body of the email reply..."

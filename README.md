@@ -62,7 +62,7 @@ Engram moves beyond "Chat" by employing active agents that run on a schedule.
 **The Calendar Agent**
 - Trigger: Runs every 15 minutes.
 
-- Logic: Scans short-term memory for unstructured intent (e.g., "Need to meet Dave next Tuesday").
+- Logic: Scans short-term memory for unstructured intent (e.g., "Need to schedule a team meeting next week").
 
 - Action: Uses the Google Calendar API to authentically schedule events.
 
@@ -135,8 +135,6 @@ feat: Add validation logic to user signup flow
 2. Paste a URL (e.g., `https://flask.palletsprojects.com/`).
 3. Engram scrapes the site and builds a persistent local index.
 4. Ask: *"How do I write a route in Flask?"* -> Returns exact code from the docs.
-
-![](screenshots/Doc-spider.png)
 
 **Daily Briefing & Sync**
 - Engram acts as your "Morning Mission Control," aggregating tasks from your project management tools into a prioritized executive summary.
