@@ -29,7 +29,7 @@ echo $PID_BROWSER > .browser_pid
 printf "Browser Watcher running (PID: $PID_BROWSER)\n"
 
 printf "%s\n" "---------------------------------------"
-printf "Starting File Ingestor (Eyes)...\n"
+printf "Starting File Ingestor...\n"
 nohup python3 ingestor.py > ingestor.log 2>&1 &
 PID_INGEST=$!
 echo $PID_INGEST > .ingestor_pid
@@ -49,7 +49,7 @@ printf "${CYAN}SYSTEM ONLINE${NC}\n"
 printf "   - API:        http://localhost:8000\n"
 printf "   - Dashboard:  http://localhost:8501\n"
 printf "   - Agent:      Autonomous (Runs every 15 mins)\n"
-printf "   - Ingestor:   Watching 'AI_Inbox' folder\n"
+printf "   - Ingestor:   Watching 'data/inbox' folder\n"
 printf "\n"
 printf "To shut down, run: ./stop_os.sh\n"
 printf "%s\n" "---------------------------------------"

@@ -5,15 +5,16 @@ import requests
 import logging
 import pypdf  
 
-
 API_URL = "http://localhost:8000/ingest"
-INBOX_DIR = "/Users/varunsalian/AI_Inbox" 
-PROCESSED_DIR = os.path.join(INBOX_DIR, "processed")
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+
+INBOX_DIR = os.path.join(root_dir, "data", "inbox") 
+PROCESSED_DIR = os.path.join(INBOX_DIR, "processed")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 
 os.makedirs(INBOX_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
@@ -42,9 +43,14 @@ def extract_text(filepath):
         return None
 
 def scan_inbox():
+    if not os.path.exists(INBOX_DIR):
+        logger.error(f"Inbox directory not found: {INBOX_DIR}")
+        return
+
     try:
         files = [f for f in os.listdir(INBOX_DIR) if os.path.isfile(os.path.join(INBOX_DIR, f))]
-    except FileNotFoundError:
+    except Exception as e:
+        logger.error(f"Error reading inbox: {e}")
         return
 
     if not files:
@@ -54,27 +60,25 @@ def scan_inbox():
         if filename.startswith("."): continue 
         
         filepath = os.path.join(INBOX_DIR, filename)
-        
         logger.info(f"Detected: {filename}")
-
         
         content = extract_text(filepath)
+        
         if not content:
             logger.warning(f"   Skipping unknown file type: {filename}")
-            
-            shutil.move(filepath, os.path.join(PROCESSED_DIR, filename))
+            try:
+                shutil.move(filepath, os.path.join(PROCESSED_DIR, filename))
+            except:
+                pass
             continue
 
-        
         try:
             res = requests.post(API_URL, json={"text": content, "user_id": "file_watcher"})
             
             if res.status_code == 200:
                 logger.info(f"Ingested Memory")
-                
-                destination = os.path.join(PROCESSED_DIR, filename)
-                
 
+                destination = os.path.join(PROCESSED_DIR, filename)
                 if os.path.exists(destination):
                     timestamp = int(time.time())
                     root, ext = os.path.splitext(filename)
@@ -86,11 +90,14 @@ def scan_inbox():
                 logger.error(f"API Error: {res.status_code}")
                 
         except Exception as e:
-            logger.error(f"Connection Failed: {e}")
+            logger.error(f"Connection Failed (Is the Brain online?): {e}")
 
 if __name__ == "__main__":
-    logger.info(f"File Watcher Active. Monitoring '{INBOX_DIR}'...")
-    logger.info(f"(Files will be moved to '{PROCESSED_DIR}' after reading)")
+    print("------------------------------------------------")
+    logger.info(f"File Watcher Active.")
+    logger.info(f"Watching: {INBOX_DIR}")
+    logger.info(f"Drop files there to ingest them.")
+    print("------------------------------------------------")
     
     while True:
         scan_inbox()
