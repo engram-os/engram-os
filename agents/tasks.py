@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import requests
-from worker import celery_app
+from core.worker import celery_app
 from qdrant_client import QdrantClient
 from agents.tools import add_calendar_event
 from agents.logger import log_agent_action
@@ -29,7 +29,6 @@ def run_email_agent():
 
     # 2. Thinking (In loop)
     for email in emails:
-        # Filter: Skipping obvious newsletters or alerts
         if "noreply" in email['sender'] or "newsletter" in email['sender']:
             continue
             

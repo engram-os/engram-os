@@ -34,7 +34,6 @@ AI_Inbox/*
 !AI_Inbox/.gitkeep
 AI_Inbox/processed/*
 
-
 frontend/.next/
 frontend/node_modules/
 frontend/out/
@@ -44,3 +43,8 @@ frontend/build/
 frontend/
 
 engram-core/
+
+data/inbox/*
+!data/inbox/.gitkeep
+data/logs/
+data/dbs/

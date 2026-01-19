@@ -6,7 +6,7 @@ services:
     image: qdrant/qdrant:latest
     container_name: ai_os_vault
     ports:
-      - "6334:6333" # External Access: 6334 | Internal Docker Access: 6333
+      - "6334:6333"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -14,8 +14,11 @@ services:
 
   # 2. The API
   os_layer:
-    build: .
+    build:
+      context: .
+      dockerfile: config/Dockerfile
     container_name: ai_os_api
+    command: uvicorn core.brain:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     volumes:
@@ -31,10 +34,27 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - qdrant
+      - redis
     networks:
       - ai_os_net
 
-  # 3. The Message Bus
+  # 3. The Dashboard (UI)
+  dashboard:
+    build:
+      context: .
+      dockerfile: config/Dockerfile
+    container_name: ai_os_dashboard
+    command: streamlit run interface/dashboard.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    depends_on:
+      - os_layer
+    networks:
+      - ai_os_net
+
+  # 4. The Message Bus
   redis:
     image: redis:7-alpine
     container_name: engram_redis
@@ -45,11 +65,13 @@ services:
     networks:     
       - ai_os_net
 
-  # 4. THE WORKER 
+  # 5. The Worker (Agents)
   celery_worker:
-    build: .
+    build:
+      context: .
+      dockerfile: config/Dockerfile
     container_name: engram_worker
-    command: celery -A worker.celery_app worker --loglevel=info
+    command: celery -A core.worker.celery_app worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -68,11 +90,13 @@ services:
     networks:    
       - ai_os_net
       
-  # 5. Celery Beat
+  # 6. The Scheduler
   celery_beat:
-    build: .
+    build:
+      context: .
+      dockerfile: config/Dockerfile
     container_name: engram_beat
-    command: celery -A worker.celery_app beat --loglevel=info
+    command: celery -A core.worker.celery_app beat --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
     depends_on:
