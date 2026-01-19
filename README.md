@@ -40,7 +40,38 @@ This command will:
 ## System Architecture
 Engram is built as a distributed microservices architecture orchestrated via Docker Compose.
 
-![](screenshots/licensed-image.jpeg)
+## 🧬 Project Anatomy
+
+```bash
+engram-os/
+├── core/                # The Brain & Nervous System
+│   ├── brain.py            # FastAPI Orchestrator
+│   ├── worker.py           # Celery Task Worker
+│   └── agents/             # Autonomous Agent Logic
+│
+├── interface/           # The Face
+│   └── dashboard.py        # Streamlit Command Center
+│
+├── sensors/             # Inputs & Watchdogs
+│   ├── ingestor.py         # File Watcher
+│   └── browser_sync.py     # Browser History Spy
+│
+├── tools/               # Skills 
+│   ├── crawler.py          # Documentation Spider
+│   └── pm_tools.py         # Jira/Linear Integration
+│
+├── config/              # Infrastructure
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── scripts/             # DevOps
+│   └── start.sh            # Startup Script
+│
+└── data/                # Local Storage (Gitignored)
+    ├── inbox/              # Drop files here
+    ├── dbs/                # Qdrant & SQLite
+    └── logs/               # System logs
+```
 
 **1. The Brain (Core)**
 - LLM: Llama 3.1 (via Ollama) running locally.
@@ -192,8 +223,8 @@ pip install -r requirements.txt
 **3. Launch:**
 
 ```bash
-chmod +x start_os.sh
-./start_os.sh
+chmod +x scripts/start.sh
+./scripts/start.sh
 ```
 
 ## Privacy & Security
