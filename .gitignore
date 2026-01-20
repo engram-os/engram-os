@@ -42,6 +42,8 @@ frontend/build/
 
 frontend/
 
+.*_pid
+
 engram-core/
 
 data/inbox/*

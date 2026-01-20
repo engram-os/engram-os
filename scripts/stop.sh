@@ -1,29 +1,38 @@
-echo "SHUTTING DOWN AI OS..."
+#!/bin/bash
 
-echo "---------------------------------------"
-echo "Stopping Docker Containers..."
-docker-compose stop
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-echo "---------------------------------------"
-if [ -f .ingestor_pid ]; then
-    PID=$(cat .ingestor_pid)
-    echo "Killing Ingestor (PID: $PID)..."
-    kill $PID 2>/dev/null
-    rm .ingestor_pid
-fi
+printf "%s\n" "---------------------------------------"
+printf "${CYAN}STOPPING ENGRAM OS...${NC}\n"
 
-if [ -f .streamlit_pid ]; then
-    PID=$(cat .streamlit_pid)
-    echo "Killing Dashboard (PID: $PID)..."
-    kill $PID 2>/dev/null
-    rm .streamlit_pid
-fi
+printf "${GREEN}Stopping Docker Infrastructure...${NC}\n"
+docker-compose down
 
-if [ -f .browser_pid ]; then
-    PID=$(cat .browser_pid)
-    echo "Killing Browser Watcher (PID: $PID)..."
-    kill $PID 2>/dev/null
-    rm .browser_pid
-fi
+cleanup_process() {
+    local name=$1
+    local pid_file=".${name}_pid"
 
-echo "System Offline. Have a nice day."
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        
+        if kill -0 "$pid" 2>/dev/null; then
+            kill "$pid"
+            printf "   - Stopped $name (PID: $pid)\n"
+        else
+            printf "   - $name was not running (Stale PID)\n"
+        fi
+        
+        rm "$pid_file"
+    else
+        printf "   - $name is already stopped.\n"
+    fi
+}
+
+cleanup_process "browser_sync"
+cleanup_process "ingestor"
+cleanup_process "ui"
+
+printf "%s\n" "---------------------------------------"
+printf "${CYAN}SYSTEM OFFLINE${NC}\n"
