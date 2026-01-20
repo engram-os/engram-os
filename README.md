@@ -12,9 +12,7 @@
 
 </div>
 
-**Engram OS** is a local-first, event-driven AI Operating System designed to turn your personal data into autonomous action. Unlike cloud-based assistants, Engram runs entirely on your hardware using Docker, ensuring 0% data egress.
-
-It features a dual-pipeline RAG memory system, a background nervous system for autonomous agents, and real-time sensors for file and browser activity.
+**Engram OS** is a local-first, event-driven AI Operating System designed to turn your personal data into autonomous action. Unlike cloud-based assistants, Engram runs entirely on your hardware using Docker, ensuring 0% data egress. It features a dual-pipeline RAG memory system, a background nervous system for autonomous agents, and real-time sensors for file and browser activity.
 
 ---
 
@@ -44,7 +42,7 @@ engram-os/
 ├── core/                # The Brain & Nervous System
 │   ├── brain.py            # FastAPI Orchestrator
 │   ├── worker.py           # Celery Task Worker
-│   └── agents/             # Autonomous Agent Logic
+│   └── jarvis.py             # Autonomous Agent Logic
 │
 ├── interface/           # The Face
 │   └── dashboard.py        # Streamlit Command Center
@@ -62,11 +60,11 @@ engram-os/
 │   └── requirements.txt
 │
 ├── scripts/             # DevOps
-│   └── start.sh            # Startup Script
+│   ├── start.sh            # Startup Script
+│   └── stop.sh             # Stop Script
 │
 └── data/                # Local Storage (Gitignored)
     ├── inbox/              # Drop files here
-    ├── dbs/                # Qdrant & SQLite
     └── logs/               # System logs
 ```
 
