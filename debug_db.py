@@ -2,7 +2,7 @@ import requests
 import json
 
 API_URL = "http://localhost:8000/search"
-USER_ID = "vikram"
+USER_ID = "file_watcher"
 
 response = requests.get(API_URL, params={"query": "deadline", "user_id": USER_ID})
 data = response.json()
