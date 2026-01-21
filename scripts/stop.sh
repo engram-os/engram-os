@@ -4,7 +4,7 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-printf "${CYAN}STOPPING ENGRAM OS...${NC}\n"
+printf "${CYAN}Stopping Engram...${NC}\n"
 
 printf "${GREEN}Stopping Docker Infrastructure...${NC}\n"
 docker-compose down

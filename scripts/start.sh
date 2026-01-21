@@ -5,6 +5,8 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 init_local_ai() {
+  printf "${CYAN}Starting Engram...${NC}\n"
+
   printf "${GREEN}Starting Docker Infrastructure...${NC}\n"
   
   mkdir -p data/logs
