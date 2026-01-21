@@ -28,12 +28,11 @@ function g-commit() {
         return 1
     fi
     
-    echo "\n Suggested Commit Message:"
-    echo "$COMMIT_MSG"
+    printf "\nSuggested Commit Message:\n"
+    printf "%s\n\n" "$COMMIT_MSG"
     
     printf "Do you want to use this? (y/n/e to edit): "
     read -r reply < /dev/tty
-    
     if [[ "$reply" == "y" ]]; then
         git commit -m "$COMMIT_MSG"
     elif [[ "$reply" == "e" ]]; then
@@ -77,18 +76,3 @@ function g-check() {
         echo "Check your diff before pushing!"
     fi
 }
-case "$1" in
-    "commit")
-        g-commit
-        ;;
-    "pr")
-        g-pr
-        ;;
-    "check")
-        g-check
-        ;;
-    *)
-        echo "Usage: $0 {commit|pr|check}"
-        exit 1
-        ;;
-esac
