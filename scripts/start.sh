@@ -11,11 +11,6 @@ init_local_ai() {
   
   docker-compose up -d
 
-  until curl -s -f -o /dev/null "http://localhost:8000/docs"; do
-    sleep 2
-  done
-  printf "${GREEN}Online!${NC}\n"
-
   run_processes() {
     local name=$1
     local script=$2

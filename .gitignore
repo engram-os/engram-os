@@ -44,6 +44,8 @@ frontend/
 
 .*_pid
 
+*.json
+
 engram-core/
 
 data/inbox/*
