@@ -31,8 +31,9 @@ function g-commit() {
     echo "\n Suggested Commit Message:"
     echo "$COMMIT_MSG"
     
-    # Confirmation
-    read "reply?Do you want to use this? (y/n/e to edit): "
+    printf "Do you want to use this? (y/n/e to edit): "
+    read -r reply < /dev/tty
+    
     if [[ "$reply" == "y" ]]; then
         git commit -m "$COMMIT_MSG"
     elif [[ "$reply" == "e" ]]; then
