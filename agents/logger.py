@@ -2,8 +2,12 @@ import sqlite3
 import datetime
 import os
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DBS_DIR = os.path.join(root_dir, "data", "dbs")
+os.makedirs(DBS_DIR, exist_ok=True)
+
 DB_PATH = os.path.join(BASE_DIR, "agent_activity.db")
 
 def init_db():
