@@ -103,6 +103,7 @@ def run_calendar_agent():
         return
 
     active_memories = []
+    id_map = {}
     
     for r in recs:
         if r.payload.get("status") == "processed":
@@ -110,6 +111,8 @@ def run_calendar_agent():
             
         content = r.payload.get('memory') or r.payload.get('text') or r.payload.get('data')
         if content:
+            id_key = str(r.id)
+            id_map[id_key] = r.id
             active_memories.append(f"[ID: {r.id}] {content}")
             
     if not active_memories:
@@ -172,15 +175,20 @@ def run_calendar_agent():
             )
             
             # B. Marking done (The Fix for Loops)
-            mem_id = decision.get("memory_id")
-            if mem_id:
+            raw_id = str(decision.get("memory_id")).strip()
+            real_id = id_map.get(raw_id)
+
+            if real_id:
                 # Updating the database entry to say "status: processed"
                 qdrant.set_payload(
                     collection_name=COLLECTION_NAME,
                     payload={"status": "processed"},
-                    points=[mem_id]
+                    points=[real_id],
+                    wait=True
                 )
-                log_agent_action("CalendarAgent", "UPDATE", f"Marked memory as processed.")
+                log_agent_action("CalendarAgent", "UPDATE", f"Success: Marked {real_id} as processed.")
+            else:
+                log_agent_action("CalendarAgent", "WARNING", f"Could not find ID '{raw_id}' in map. Update failed.")
             
             return {"status": "scheduled", "details": decision}
             
