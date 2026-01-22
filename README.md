@@ -142,7 +142,7 @@ Run this command? [Y/n]
     - Writes structured Pull Request descriptions summarizing changes.
     - Security Sentinel: Pre-flight scans for leaked secrets (AWS keys, tokens) before pushing.
 
-**Usage:**
+- Usage:
 ```bash
 $ g-commit
 Engram is reading your changes...
