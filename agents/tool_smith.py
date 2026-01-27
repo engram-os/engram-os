@@ -38,7 +38,6 @@ def create_new_skill(user_request):
         filename = f"generated_tool_{user_request.split()[0].lower()}.py"
         filepath = os.path.join(TOOLS_DIR, filename)
         
-        # 3. Save the File
         with open(filepath, "w") as f:
             f.write(code)
             
@@ -48,6 +47,5 @@ def create_new_skill(user_request):
         return f"Forge Failed: {e}"
 
 if __name__ == "__main__":
-    # Test it directly from CLI
     req = input("What tool should I build? > ")
     print(create_new_skill(req))
