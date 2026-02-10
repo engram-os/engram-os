@@ -211,26 +211,4 @@ with f_center_col:
                 <div><span class="badge {badge_class}">{action}</span> <span style="color: #212529;">{details}</span></div>
             </div>
             """, unsafe_allow_html=True)
-
-
-with st.expander("Tool Smith (Experimental)"):
-    st.caption("Describe a capability you want Engram to have (e.g., 'Check the current price of Bitcoin', 'Generate a random password').")
-    
-    new_skill_req = st.text_input("Skill Description")
-    
-    if st.button("Forge New Skill"):
-        with st.spinner("Writing code..."):
-            import subprocess
-            result = subprocess.run(
-                ["python3", "agents/tool_smith.py"], 
-                input=new_skill_req.encode(), 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE
-            )
-            
-            output = result.stdout.decode()
-            if "Success!" in output:
-                st.success(output)
-                st.balloons()
-            else:
-                st.error(f"Error: {output} \n {result.stderr.decode()}")            
+   
