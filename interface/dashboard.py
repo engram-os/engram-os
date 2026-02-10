@@ -5,6 +5,22 @@ import sys
 from datetime import datetime
 from PIL import Image
 
+try:
+    from streamlit_javascript import st_javascript
+    JS_AVAILABLE = True
+except ImportError:
+    JS_AVAILABLE = False
+
+try:
+    from zoneinfo import ZoneInfo          
+    def make_aware(dt, tz_name):
+        return dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz_name))
+except ImportError:
+    import pytz                            
+    def make_aware(dt, tz_name):
+        utc_dt = pytz.utc.localize(dt)
+        return utc_dt.astimezone(pytz.timezone(tz_name))
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agents.logger import get_recent_logs
 
@@ -93,6 +109,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+if JS_AVAILABLE:
+    tz_name = st_javascript("Intl.DateTimeFormat().resolvedOptions().timeZone")
+    if isinstance(tz_name, str) and tz_name:
+        st.session_state["user_tz"] = tz_name   # real value — cache it
+    elif "user_tz" not in st.session_state:
+        st.session_state["user_tz"] = None       # still waiting for JS
+else:
+    st.session_state["user_tz"] = None
+
+user_tz = st.session_state.get("user_tz")       # None until JS resolves
+
+
+def format_log_time(timestamp_str: str) -> str:
+    """
+    Converts a UTC timestamp string to the user's local time.
+    Falls back to raw HH:MM (UTC) if conversion is unavailable.
+    """
+    try:
+        dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        if user_tz:
+            local_dt = make_aware(dt, user_tz)
+            return local_dt.strftime("%H:%M")
+        return dt.strftime("%H:%M")   # JS not resolved yet — show UTC time
+    except Exception:
+        return timestamp_str
+
 spacer_left, center_col, spacer_right = st.columns([1, 2, 1])
 
 with center_col:
@@ -146,9 +188,8 @@ st.markdown("###")
 f_spacer_left, f_center_col, f_spacer_right = st.columns([1, 2, 1])
 
 with f_center_col:
-    f_head, f_btn = st.columns([3, 1])
-    with f_head:
-        st.subheader("System Activity")
+    f_head, f_tz, f_btn = st.columns([3, 1, 1])
+    
     with f_btn:
         if st.button("Refresh Feed", key="refresh", type="secondary"):
             st.rerun()
@@ -162,11 +203,7 @@ with f_center_col:
             elif action == "ERROR": badge_class = "badge-red"
             elif action == "WAKE_UP": badge_class = "badge-blue"
             
-            try:
-                dt = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                nice_time = dt.strftime("%H:%M")
-            except:
-                nice_time = timestamp
+            nice_time = format_log_time(timestamp)
 
             st.markdown(f"""
             <div class="log-item">

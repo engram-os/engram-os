@@ -4,10 +4,8 @@ import os
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-
 DBS_DIR = os.path.join(root_dir, "data", "dbs")
 os.makedirs(DBS_DIR, exist_ok=True)
-
 DB_PATH = os.path.join(DBS_DIR, "agent_activity.db")
 
 def init_db():
@@ -25,15 +23,17 @@ def init_db():
 
 def log_agent_action(agent_name, action_type, details):
     """
+    Logs an agent action to the database with a UTC timestamp.
     action_type options: 'THINKING', 'TOOL_USE', 'DECISION', 'ERROR'
     """
     try:
         init_db() 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("INSERT INTO activity_log (timestamp, agent_name, action_type, details) VALUES (?, ?, ?, ?)",
-                  (timestamp, agent_name, action_type, str(details)))
+        timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute(
+            "INSERT INTO activity_log (timestamp, agent_name, action_type, details) VALUES (?, ?, ?, ?)",
+            (timestamp, agent_name, action_type, str(details)))
         conn.commit()
         conn.close()
     except Exception as e:
