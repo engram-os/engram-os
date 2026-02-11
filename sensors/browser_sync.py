@@ -82,10 +82,17 @@ def sync_history():
             if visit_time_sec > new_max_time:
                 new_max_time = visit_time_sec
 
-            text = f"User visited '{title}' ({url}) on {readable_time}"
+            embed_text = f"User visited '{title}' ({url})"
+
+            store_text = f"User visited '{title}' ({url}) on {readable_time}"
             
             try:
-                requests.post(API_URL, json={"text": text, "user_id": "browser_watcher"})
+                requests.post(API_URL, json={
+                    "text": store_text, 
+                    "embed-text": embed_text,
+                    "user_id": "browser_watcher",
+                    "type": "browsing_event"
+                    })
             except:
                 logger.error("Failed to send to API")
 

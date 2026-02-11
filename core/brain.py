@@ -164,17 +164,26 @@ def add_memory(item: UserInput):
 @app.post("/ingest")
 def ingest_file(item: UserInput):
 
-    vector = get_embedding(item.text)
-    if not vector: raise HTTPException(status_code=500, detail="Embedding failed")
+    text_to_embed = getattr(item, "embed-text", None) or item.text
+
+    vector = get_embedding(text_to_embed)
+    if not vector: 
+        raise HTTPException(status_code=500, detail="Embedding failed")
     
     similar = client.query_points(
         collection_name=COLLECTION_NAME, 
         query=vector, 
         query_filter=models.Filter(
-        must=[models.FieldCondition(
-            key="user_id", 
-            match=models.MatchValue(value=item.user_id)
-        )]
+        must=[
+            models.FieldCondition(
+                key="user_id", 
+                match=models.MatchValue(value=item.user_id)
+            ),
+            models.FieldCondition(
+                key="type", 
+                match=models.MatchValue(value="browsing_event")
+            )
+        ]
     ), 
     limit=1, 
     score_threshold=0.97
@@ -182,9 +191,7 @@ def ingest_file(item: UserInput):
     if similar.points:
         return {
             "status": "duplicate_skipped", 
-            "id": similar[0].id, 
-            "similarity": similar[0].score, 
-            "matched_memory": similar[0].payload.get("memory")
+            "id": similar[0].id
             }
 
     content_hash = hashlib.sha256(
@@ -199,8 +206,9 @@ def ingest_file(item: UserInput):
             vector=vector, 
             payload={
                 "memory": item.text, 
+                "embed_text": text_to_embed,
                 "user_id": item.user_id, 
-                "type": "raw_ingestion", 
+                "type": "browsing_event", 
                 "created_at": str(datetime.datetime.now())
             }
         )]
