@@ -245,16 +245,27 @@ def chat_with_memory(item: UserInput):
                     )
                 ]
             ),
-            limit=5,
-            score_threshold=0.75
+            limit=5
             )
         search_hits = search_response.points
     except Exception as e:
         logger.error(f"Search failed: {e}")
         return {"reply": "Database Error", "context_used": []}
     
-    simple_sources = []
-    context_str = ""
+    if not search_hits:
+        top_score = 0
+    else:
+        top_score = search_hits[0].score
+
+    if top_score < 0.45:
+        system_prompt = """You are a helpful Personal OS.
+        You have no stored memories relevant to this question.
+        Respond with: "I don't have anything stored about that yet."
+        Do not make up or infer any information."""
+        simple_sources = []
+    else:
+        context_str = ""
+        simple_sources = []
     
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
@@ -269,7 +280,6 @@ def chat_with_memory(item: UserInput):
         Answer the user's question using ONLY the memories provided below.
         If the memories don't contain enough information to answer, say "I don't have enough context stored about that yet."
         Do not invent, infer, or add information beyond what is in the memories.
-        If multiple memories contain conflicting answers, choose the one with the highest similarity score.
    
     Stored memories:
     """ + context_str
