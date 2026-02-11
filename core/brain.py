@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from mem0 import Memory
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -81,6 +82,8 @@ client = QdrantClient(host=QDRANT_HOST, port=6333)
 
 class UserInput(BaseModel):
     text: str
+    embed_text: str | None = None
+    type: str | None = None
 
 class CrawlRequest(BaseModel):
     url: str
@@ -169,7 +172,7 @@ def add_memory(item: UserInput):
 @app.post("/ingest")
 def ingest_file(item: UserInput):
 
-    text_to_embed = getattr(item, "embed-text", None) or item.text
+    text_to_embed = item.embed_text or item.text
 
     vector = get_embedding(text_to_embed)
     if not vector: 
