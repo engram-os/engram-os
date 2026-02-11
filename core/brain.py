@@ -2,7 +2,7 @@ import os
 import logging
 import requests
 import uuid
-import datetime
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from mem0 import Memory
@@ -10,6 +10,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from fastapi.middleware.cors import CORSMiddleware
 import hashlib
+import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
 from agents.terminal import router as terminal_router
@@ -17,12 +18,17 @@ from agents.spectre import router as spectre_router
 from agents.git_automator import router as git_router
 from agents.git_automator import client
 
+from core.identity import get_or_create_identity
+
 from tools.visualizer import router as visualizer_router
 from tools.crawler import DocSpider, collection 
 from tools.pm_tools import IntegrationManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+IDENTITY = get_or_create_identity()
+LOCAL_USER_ID = IDENTITY["user_id"]
 
 app = FastAPI(title="Engram OS Brain")
 
@@ -75,7 +81,6 @@ client = QdrantClient(host=QDRANT_HOST, port=6333)
 
 class UserInput(BaseModel):
     text: str
-    user_id: str = "default_user"
 
 class CrawlRequest(BaseModel):
     url: str
@@ -158,7 +163,7 @@ async def trigger_email_check():
 
 @app.post("/add-memory")
 def add_memory(item: UserInput):
-    m.add(item.text, user_id=item.user_id)
+    m.add(item.text, user_id=LOCAL_USER_ID)
     return {"status": "profile_updated"}
 
 @app.post("/ingest")
@@ -179,7 +184,7 @@ def ingest_file(item: UserInput):
         must=[
             models.FieldCondition(
                 key="user_id", 
-                match=models.MatchValue(value=item.user_id)
+                match=models.MatchValue(value=LOCAL_USER_ID)
             ),
             models.FieldCondition(
                 key="type", 
@@ -198,7 +203,7 @@ def ingest_file(item: UserInput):
             }
 
     content_hash = hashlib.sha256(
-        f"{item.user_id}:{text_to_embed}".encode()
+        f"{LOCAL_USER_ID}:{text_to_embed}".encode()
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
@@ -210,9 +215,9 @@ def ingest_file(item: UserInput):
             payload={
                 "memory": item.text, 
                 "embed_text": text_to_embed,
-                "user_id": item.user_id, 
-                "type": "content_type", 
-                "created_at": str(datetime.datetime.now())
+                "user_id": LOCAL_USER_ID,
+                "type": content_type, 
+                "created_at": str(datetime.now())
             }
         )]
     )
@@ -220,7 +225,7 @@ def ingest_file(item: UserInput):
 
 @app.get("/search")
 def search_memory(query: str, user_id: str = "default_user"):
-    return {"results": m.search(query, user_id=user_id)}
+    return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
@@ -236,7 +241,7 @@ def chat_with_memory(item: UserInput):
                 must=[
                     models.FieldCondition(
                         key="user_id",
-                        match=models.MatchValue(value=item.user_id)
+                        match=models.MatchValue(value=LOCAL_USER_ID)
                     )
                 ]
             ),
@@ -264,6 +269,7 @@ def chat_with_memory(item: UserInput):
         Answer the user's question using ONLY the memories provided below.
         If the memories don't contain enough information to answer, say "I don't have enough context stored about that yet."
         Do not invent, infer, or add information beyond what is in the memories.
+        If multiple memories contain conflicting answers, choose the one with the highest similarity score.
    
     Stored memories:
     """ + context_str

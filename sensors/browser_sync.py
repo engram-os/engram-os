@@ -5,6 +5,7 @@ import time
 import requests
 import logging
 from datetime import datetime
+from identity import get_or_create_identity
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
@@ -24,6 +25,9 @@ API_URL = "http://localhost:8000/ingest"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+IDENTITY = get_or_create_identity()
+LOCAL_USER_ID = IDENTITY["user_id"]
 
 def get_last_timestamp():
     """Reads the last sync time from the data folder."""
@@ -90,7 +94,6 @@ def sync_history():
                 requests.post(API_URL, json={
                     "text": store_text, 
                     "embed-text": embed_text,
-                    "user_id": "browser_watcher",
                     "type": "browsing_event"
                     })
             except:
