@@ -9,6 +9,7 @@ from mem0 import Memory
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from fastapi.middleware.cors import CORSMiddleware
+import hashlib
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
 from agents.terminal import router as terminal_router
@@ -162,9 +163,15 @@ def add_memory(item: UserInput):
 
 @app.post("/ingest")
 def ingest_file(item: UserInput):
+    content_hash = hashlib.sha256(
+        f"{item.text}{item.user_id}".encode()
+    ).hexdigest()
+    point_id = str(uuid.UUID(content_hash[:32]))
+    existing = client.retrieve(collection_name=COLLECTION_NAME, ids=[point_id])
+    if existing:
+        return {"status": "duplicate_skipped", "id": point_id}
     vector = get_embedding(item.text)
     if not vector: raise HTTPException(status_code=500, detail="Embedding failed")
-    point_id = str(uuid.uuid4())
     client.upsert(
         collection_name=COLLECTION_NAME,
         points=[models.PointStruct(id=point_id, vector=vector, payload={"memory": item.text, "user_id": item.user_id, "type": "raw_ingestion", "created_at": str(datetime.datetime.now())})]
