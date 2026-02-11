@@ -169,6 +169,8 @@ def ingest_file(item: UserInput):
     vector = get_embedding(text_to_embed)
     if not vector: 
         raise HTTPException(status_code=500, detail="Embedding failed")
+
+    content_type = getattr(item, "type", "raw_ingestion")
     
     similar = client.query_points(
         collection_name=COLLECTION_NAME, 
@@ -191,11 +193,12 @@ def ingest_file(item: UserInput):
     if similar.points:
         return {
             "status": "duplicate_skipped", 
-            "id": similar[0].id
+            "id": similar.points[0].id,
+            "score": similar.points[0].score
             }
 
     content_hash = hashlib.sha256(
-        f"{item.user_id}{item.text}".encode()
+        f"{item.user_id}:{text_to_embed}".encode()
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
@@ -208,7 +211,7 @@ def ingest_file(item: UserInput):
                 "memory": item.text, 
                 "embed_text": text_to_embed,
                 "user_id": item.user_id, 
-                "type": "browsing_event", 
+                "type": "content_type", 
                 "created_at": str(datetime.datetime.now())
             }
         )]
@@ -222,32 +225,66 @@ def search_memory(query: str, user_id: str = "default_user"):
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
-    if not query_vector: return {"reply": "Embedding Error", "context_used": []}
+    if not query_vector: 
+        return {"reply": "Embedding Error", "context_used": []}
 
     try:
-        search_response = client.query_points(collection_name=COLLECTION_NAME, query=query_vector, limit=5)
+        search_response = client.query_points(
+            collection_name=COLLECTION_NAME, 
+            query=query_vector, 
+            query_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="user_id",
+                        match=models.MatchValue(value=item.user_id)
+                    )
+                ]
+            ),
+            limit=5,
+            score_threshold=0.75
+            )
         search_hits = search_response.points
-    except:
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
         return {"reply": "Database Error", "context_used": []}
     
-    context_str = ""
     simple_sources = []
+    context_str = ""
     
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
         context_str += f"- {mem_text}\n"
-        simple_sources.append({"memory": mem_text})
+        simple_sources.append({
+            "memory": mem_text,
+            "score": round(hit.score, 3)
+        })
 
-    if not context_str.strip(): context_str = "No relevant personal memories found."
+    if context_str.strip():
+        system_prompt = """You are a helpful Personal OS with access to the user's stored memories. 
+        Answer the user's question using ONLY the memories provided below.
+        If the memories don't contain enough information to answer, say "I don't have enough context stored about that yet."
+        Do not invent, infer, or add information beyond what is in the memories.
    
-    system_prompt = f"You are a helpful Personal OS. Use memories to answer:\n{context_str}"
+    Stored memories:
+    """ + context_str
+    else:
+        system_prompt = """You are a helpful Personal OS.
+        You have no stored memories relevant to this question.
+        Respond with: "I don't have anything stored about that yet."
+        Do not make up or infer any information."""
     
     try:
-        ollama_res = requests.post(f"{OLLAMA_URL}/api/chat", json={
+        ollama_res = requests.post(
+            f"{OLLAMA_URL}/api/chat", 
+            json={
             "model": "llama3.1:latest",
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": item.text}],
+            "messages": [
+                {"role": "system", "content": system_prompt}, 
+                {"role": "user", "content": item.text}
+            ],
             "stream": False
-        })
+        }
+        )
         ai_reply = ollama_res.json().get("message", {}).get("content", "Error.")
         return {"reply": ai_reply, "context_used": simple_sources}
     except Exception as e:
