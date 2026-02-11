@@ -163,6 +163,15 @@ def add_memory(item: UserInput):
 
 @app.post("/ingest")
 def ingest_file(item: UserInput):
+    vector = get_embedding(item.text)
+    if not vector: raise HTTPException(status_code=500, detail="Embedding failed")
+    
+    similar = client.query_points(collection_name=COLLECTION_NAME, query=vector, query_filter=models.Filter(
+        must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=item.user_id)
+        )]
+    ), limit=1, score_threshold=0.97)
+    if similar.points:
+        return {"status": "duplicate_skipped", "id": similar[0].id, "similarity": similar[0].score, "matched_memory": similar[0].payload.get("memory")}
     content_hash = hashlib.sha256(
         f"{item.text}{item.user_id}".encode()
     ).hexdigest()
