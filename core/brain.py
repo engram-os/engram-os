@@ -188,7 +188,7 @@ def ingest_file(item: UserInput):
             ),
             models.FieldCondition(
                 key="type", 
-                match=models.MatchValue(value="browsing_event")
+                match=models.MatchValue(value=content_type)
             )
         ]
     ), 
