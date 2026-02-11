@@ -163,27 +163,47 @@ def add_memory(item: UserInput):
 
 @app.post("/ingest")
 def ingest_file(item: UserInput):
+
     vector = get_embedding(item.text)
     if not vector: raise HTTPException(status_code=500, detail="Embedding failed")
     
-    similar = client.query_points(collection_name=COLLECTION_NAME, query=vector, query_filter=models.Filter(
-        must=[models.FieldCondition(key="user_id", match=models.MatchValue(value=item.user_id)
+    similar = client.query_points(
+        collection_name=COLLECTION_NAME, 
+        query=vector, 
+        query_filter=models.Filter(
+        must=[models.FieldCondition(
+            key="user_id", 
+            match=models.MatchValue(value=item.user_id)
         )]
-    ), limit=1, score_threshold=0.97)
+    ), 
+    limit=1, 
+    score_threshold=0.97
+    )
     if similar.points:
-        return {"status": "duplicate_skipped", "id": similar[0].id, "similarity": similar[0].score, "matched_memory": similar[0].payload.get("memory")}
+        return {
+            "status": "duplicate_skipped", 
+            "id": similar[0].id, 
+            "similarity": similar[0].score, 
+            "matched_memory": similar[0].payload.get("memory")
+            }
+
     content_hash = hashlib.sha256(
-        f"{item.text}{item.user_id}".encode()
+        f"{item.user_id}{item.text}".encode()
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
-    existing = client.retrieve(collection_name=COLLECTION_NAME, ids=[point_id])
-    if existing:
-        return {"status": "duplicate_skipped", "id": point_id}
-    vector = get_embedding(item.text)
-    if not vector: raise HTTPException(status_code=500, detail="Embedding failed")
+
     client.upsert(
         collection_name=COLLECTION_NAME,
-        points=[models.PointStruct(id=point_id, vector=vector, payload={"memory": item.text, "user_id": item.user_id, "type": "raw_ingestion", "created_at": str(datetime.datetime.now())})]
+        points=[models.PointStruct(
+            id=point_id, 
+            vector=vector, 
+            payload={
+                "memory": item.text, 
+                "user_id": item.user_id, 
+                "type": "raw_ingestion", 
+                "created_at": str(datetime.datetime.now())
+            }
+        )]
     )
     return {"status": "raw_data_saved", "id": point_id}
 
