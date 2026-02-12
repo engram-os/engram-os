@@ -255,10 +255,15 @@ def chat_with_memory(item: UserInput):
         logger.error(f"Search failed: {e}")
         return {"reply": "Database Error", "context_used": []}
     
-    if search_hits is None:
+    if not search_hits:
         top_score = 0
     else:
-        top_score = search_hits[0].score
+        search_hits = sorted(
+        search_hits,
+        key=lambda hit: hit.score,
+        reverse=True
+    )
+    top_score = search_hits[0].score
 
     if top_score < 0.45:
         system_prompt = """You are a helpful Personal OS.
