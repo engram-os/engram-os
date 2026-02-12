@@ -171,7 +171,7 @@ def add_memory(item: UserInput):
 @app.post("/ingest")
 def ingest_file(item: UserInput):
 
-    text_to_embed = item.embed_text or item.text
+    text_to_embed = item.embed_text if item.embed_text is not None else item.text
 
     vector = get_embedding(text_to_embed)
     if not vector: 
