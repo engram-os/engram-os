@@ -230,9 +230,9 @@ def search_memory(query: str, user_id: str = "default_user"):
     return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
 @app.post("/chat")
-def chat_with_memory(item: UserInput):
+async def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
-    if not query_vector: 
+    if query_vector is None:
         return {"reply": "Embedding Error", "context_used": []}
 
     try:
@@ -258,9 +258,11 @@ def chat_with_memory(item: UserInput):
     simple_sources = []
     context_str = ""
 
+    lines = []
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
-        context_str += f"- {mem_text}\n"
+        lines.append(f"- {mem_text}")
+        context_str = "\n".join(lines)
         simple_sources.append({
             "memory": mem_text,
             "score": round(hit.score, 3)
