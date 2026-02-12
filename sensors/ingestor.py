@@ -5,7 +5,7 @@ import requests
 import logging
 import pypdf  
 
-API_URL = "http://localhost:8000/ingest"
+API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
@@ -29,7 +29,8 @@ def extract_text(filepath):
             reader = pypdf.PdfReader(filepath)
             text = ""
             for page in reader.pages:
-                text += page.extract_text() + "\n"
+                page_text = page.extract_text() or ""
+                text += page_text + "\n"
             return f"File '{filename}': {text}"
             
         elif ext in ['.txt', '.md', '.py', '.js', '.csv', '.json']:
@@ -73,14 +74,14 @@ def scan_inbox():
             continue
 
         try:
-            res = requests.post(API_URL, json={"text": content, "user_id": "file_watcher"})
+            res = requests.post(API_URL, json={"text": content, "user_id": "LOCAL_USER_ID"})
             
             if res.status_code == 200:
                 logger.info(f"Ingested Memory")
 
                 destination = os.path.join(PROCESSED_DIR, filename)
                 if os.path.exists(destination):
-                    timestamp = int(time.time())
+                    timestamp = int(time.time() * 1000)
                     root, ext = os.path.splitext(filename)
                     destination = os.path.join(PROCESSED_DIR, f"{root}_{timestamp}{ext}")
                 
