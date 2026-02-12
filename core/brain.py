@@ -233,7 +233,7 @@ def search_memory(query: str, user_id: str = "default_user"):
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
-    if not query_vector: 
+    if query_vector is None:
         return {"reply": "Embedding Error", "context_used": []}
 
     try:
