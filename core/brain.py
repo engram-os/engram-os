@@ -255,7 +255,7 @@ def chat_with_memory(item: UserInput):
         logger.error(f"Search failed: {e}")
         return {"reply": "Database Error", "context_used": []}
     
-    if not search_hits:
+    if search_hits is None:
         top_score = 0
     else:
         top_score = search_hits[0].score
