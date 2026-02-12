@@ -6,10 +6,13 @@ import requests
 import os
 import time
 from scipy.io.wavfile import write
+from core.identity import get_or_create_identity
 
 API_URL = "http://localhost:8000/chat"
-USER_ID = "file_watcher"
 WHISPER_MODEL_SIZE = "base" 
+
+IDENTITY = get_or_create_identity()
+LOCAL_USER_ID = IDENTITY["user_id"]
 
 def record_audio(duration=5, fs=44100):
     print("Listening... (Speak now!)")
@@ -43,7 +46,7 @@ def run_jarvis():
             
             
             print("Thinking...")
-            response = requests.post(API_URL, json={"text": user_text, "user_id": USER_ID})
+            response = requests.post(API_URL, json={"text": user_text, "user_id": LOCAL_USER_ID})
             
             if response.status_code == 200:
                 data = response.json()
