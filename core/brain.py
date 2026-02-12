@@ -83,7 +83,6 @@ client = QdrantClient(host=QDRANT_HOST, port=6333)
 class UserInput(BaseModel):
     text: str
     embed_text: str | None = None
-    type: str | None = None
 
 class CrawlRequest(BaseModel):
     url: str
@@ -233,7 +232,7 @@ def search_memory(query: str, user_id: str = "default_user"):
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
-    if query_vector is None:
+    if not query_vector: 
         return {"reply": "Embedding Error", "context_used": []}
 
     try:
@@ -248,33 +247,17 @@ def chat_with_memory(item: UserInput):
                     )
                 ]
             ),
-            limit=5
+            limit=5,
+            score_threshold=0.45
             )
         search_hits = search_response.points
     except Exception as e:
         logger.error(f"Search failed: {e}")
         return {"reply": "Database Error", "context_used": []}
     
-    if not search_hits:
-        top_score = 0
-    else:
-        search_hits = sorted(
-        search_hits,
-        key=lambda hit: hit.score,
-        reverse=True
-    )
-    top_score = search_hits[0].score
+    simple_sources = []
+    context_str = ""
 
-    if top_score < 0.45:
-        system_prompt = """You are a helpful Personal OS.
-        You have no stored memories relevant to this question.
-        Respond with: "I don't have anything stored about that yet."
-        Do not make up or infer any information."""
-        simple_sources = []
-    else:
-        context_str = ""
-        simple_sources = []
-    
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
         context_str += f"- {mem_text}\n"
