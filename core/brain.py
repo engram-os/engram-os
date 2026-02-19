@@ -14,10 +14,11 @@ import hashlib
 import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
+from ollama import Client as OllamaClient
+
 from agents.terminal import router as terminal_router
 from agents.spectre import router as spectre_router
 from agents.git_automator import router as git_router
-from agents.git_automator import client
 
 from core.identity import get_or_create_identity
 
@@ -49,6 +50,8 @@ app.include_router(git_router)
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 COLLECTION_NAME = "second_brain"
+
+ollama_client = OllamaClient(host=OLLAMA_URL)
 
 config = {
     "vector_store": {

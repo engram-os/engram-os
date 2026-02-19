@@ -52,3 +52,7 @@ data/inbox/*
 !data/inbox/.gitkeep
 data/logs/
 data/dbs/
+
+.claude/
+
+notes/
