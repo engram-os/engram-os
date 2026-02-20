@@ -139,14 +139,15 @@ async def ingest_docs(request: CrawlRequest):
 @app.post("/api/docs/query")
 def query_docs(request: QueryRequest):
     results = collection.query(query_texts=[request.query], n_results=3)
-    context = ""
+    context_parts = []
     sources = []
-    
+
     if results['documents']:
         for i, doc in enumerate(results['documents'][0]):
             meta = results['metadatas'][0][i]
-            context += f"\n--- Source: {meta['source']} ---\n{doc}\n"
+            context_parts.append(f"\n--- Source: {meta['source']} ---\n{doc}\n")
             sources.append(meta['source'])
+    context = "".join(context_parts)
 
     prompt = f"Answer strictly using context:\n{context}\nQUESTION: {request.query}"
     response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
