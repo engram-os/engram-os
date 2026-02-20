@@ -1,10 +1,11 @@
+import os
 import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from ollama import Client
 
 router = APIRouter()
-client = Client(host='http://host.docker.internal:11434')
+client = Client(host=os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"))
 
 class GitRequest(BaseModel):
     diff: str
@@ -60,7 +61,7 @@ async def generate_pr(request: GitRequest):
     {request.diff[:6000]}
     """
     
-    response = client.chat(model='llama3', messages=[
+    response = client.chat(model='llama3.1:latest', messages=[
         {'role': 'user', 'content': prompt}
     ])
     
