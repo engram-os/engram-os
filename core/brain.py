@@ -51,6 +51,7 @@ app.include_router(git_router)
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 COLLECTION_NAME = "second_brain"
+MAX_CONTEXT_CHARS = 4000
 
 ollama_client = OllamaClient(host=OLLAMA_URL)
 
@@ -270,7 +271,7 @@ def chat_with_memory(item: UserInput):
             "memory": mem_text,
             "score": round(hit.score, 3)
         })
-    context_str = "\n".join(lines)
+    context_str = "\n".join(lines)[:MAX_CONTEXT_CHARS]
 
     if context_str.strip():
         system_prompt = """You are a helpful Personal OS with access to the user's stored memories. 
