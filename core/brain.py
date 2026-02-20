@@ -125,8 +125,8 @@ async def daily_briefing():
     Write a concise "Daily Briefing" paragraph (max 3 sentences). 
     """
     
-    response = client.chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
-    return {"briefing": response['message']['content'], "tasks": tasks}    
+    response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
+    return {"briefing": response['message']['content'], "tasks": tasks}
 
 @app.post("/api/docs/ingest")
 async def ingest_docs(request: CrawlRequest):
@@ -147,9 +147,9 @@ async def query_docs(request: QueryRequest):
             sources.append(meta['source'])
 
     prompt = f"Answer strictly using context:\n{context}\nQUESTION: {request.query}"
-    response = client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
-    
-    return {"answer": response['message']['content'], "sources": list(set(sources))}    
+    response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
+
+    return {"answer": response['message']['content'], "sources": list(set(sources))}
 
 @app.post("/trigger-agent")
 async def trigger_agent_test():
