@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import requests
 import uuid
@@ -131,7 +132,7 @@ def daily_briefing():
 @app.post("/api/docs/ingest")
 async def ingest_docs(request: CrawlRequest):
     spider = DocSpider(request.url, max_pages=request.max_pages)
-    spider.crawl() 
+    await asyncio.to_thread(spider.crawl)
     return {"status": "success", "message": f"Ingested {request.url}"}
 
 @app.post("/api/docs/query")
