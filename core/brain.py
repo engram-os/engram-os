@@ -266,11 +266,11 @@ def chat_with_memory(item: UserInput):
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
         lines.append(f"- {mem_text}")
-        context_str = "\n".join(lines)
         simple_sources.append({
             "memory": mem_text,
             "score": round(hit.score, 3)
         })
+    context_str = "\n".join(lines)
 
     if context_str.strip():
         system_prompt = """You are a helpful Personal OS with access to the user's stored memories. 
