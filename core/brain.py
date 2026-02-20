@@ -101,7 +101,7 @@ def get_embedding(text):
         res = requests.post(f"{OLLAMA_URL}/api/embeddings", json={
             "model": "nomic-embed-text:latest",
             "prompt": text
-        })
+        }, timeout=30)
         return res.json()["embedding"]
     except Exception as e:
         logger.error(f"Embedding failed: {e}")
@@ -290,15 +290,16 @@ def chat_with_memory(item: UserInput):
     
     try:
         ollama_res = requests.post(
-            f"{OLLAMA_URL}/api/chat", 
+            f"{OLLAMA_URL}/api/chat",
             json={
-            "model": "llama3.1:latest",
-            "messages": [
-                {"role": "system", "content": system_prompt}, 
-                {"role": "user", "content": item.text}
-            ],
-            "stream": False
-        }
+                "model": "llama3.1:latest",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": item.text}
+                ],
+                "stream": False
+            },
+            timeout=60
         )
         ai_reply = ollama_res.json().get("message", {}).get("content", "Error.")
         return {"reply": ai_reply, "context_used": simple_sources}
