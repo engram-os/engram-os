@@ -26,7 +26,7 @@ services:
       - ./credentials/credentials.json:/app/credentials.json
       - ./credentials/token.json:/app/token.json
     environment:
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333 
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -75,7 +75,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333 
     extra_hosts:  
