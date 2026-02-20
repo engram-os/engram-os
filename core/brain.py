@@ -232,7 +232,7 @@ def ingest_file(item: UserInput):
     return {"status": "raw_data_saved", "id": point_id}
 
 @app.get("/search")
-def search_memory(query: str, user_id: str = "default_user"):
+def search_memory(query: str):
     return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
 @app.post("/chat")
