@@ -135,7 +135,7 @@ async def ingest_docs(request: CrawlRequest):
     return {"status": "success", "message": f"Ingested {request.url}"}
 
 @app.post("/api/docs/query")
-async def query_docs(request: QueryRequest):
+def query_docs(request: QueryRequest):
     results = collection.query(query_texts=[request.query], n_results=3)
     context = ""
     sources = []
