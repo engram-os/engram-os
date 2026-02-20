@@ -110,7 +110,7 @@ def read_root():
     return {"status": "Engram is Online", "version": "1.0.0"}
 
 @app.get("/api/integrations/briefing")
-async def daily_briefing():
+def daily_briefing():
     manager = IntegrationManager()
     tasks = manager.get_combined_briefing_data()
     
