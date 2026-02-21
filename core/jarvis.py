@@ -46,7 +46,7 @@ def run_jarvis():
             
             
             print("Thinking...")
-            response = requests.post(API_URL, json={"text": user_text, "user_id": LOCAL_USER_ID})
+            response = requests.post(API_URL, json={"text": user_text, "user_id": LOCAL_USER_ID}, timeout=(5, 60))
             
             if response.status_code == 200:
                 data = response.json()
