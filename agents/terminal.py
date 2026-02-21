@@ -25,7 +25,7 @@ async def fix_terminal_command(request: TerminalRequest):
     """
     
     try:
-        response = client.chat(model='llama3.1', messages=[
+        response = await asyncio.to_thread(client.chat, model='llama3.1:latest', messages=[
             {'role': 'user', 'content': prompt}
         ])
         
