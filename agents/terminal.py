@@ -1,10 +1,12 @@
+import asyncio
+import os
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ollama import Client
 
 router = APIRouter()
 
-client = Client(host='http://host.docker.internal:11434')
+client = Client(host=os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"))
 
 class TerminalRequest(BaseModel):
     command: str
