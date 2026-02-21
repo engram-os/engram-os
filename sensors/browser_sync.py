@@ -93,10 +93,10 @@ def sync_history():
             try:
                 requests.post(API_URL, json={
                     "user_id": "LOCAL_USER_ID",
-                    "text": store_text, 
+                    "text": store_text,
                     "embed_text": embed_text,
                     "type": "browsing_event"
-                    })
+                    }, timeout=(5, 10))
             except:
                 logger.error("Failed to send to API")
 
