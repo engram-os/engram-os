@@ -157,7 +157,7 @@ def run_calendar_agent():
     }
 
     try:
-        response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload).json()
+        response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
         content = response['message']['content']
         decision = json.loads(content)
         
