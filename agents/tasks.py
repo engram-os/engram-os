@@ -66,9 +66,9 @@ def run_email_agent():
         }
         
         try:
-            response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload).json()
+            response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
             decision = json.loads(response['message']['content'])
-            
+
             if decision.get("action") == "draft_reply":
                # 3. Action
                 log_agent_action("EmailAgent", "DECISION", f"Drafting reply to {email['sender']}")
