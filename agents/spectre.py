@@ -1,10 +1,12 @@
+import asyncio
+import os
 from fastapi import APIRouter
 from pydantic import BaseModel
 from ollama import Client
 
 router = APIRouter()
 
-client = Client(host='http://host.docker.internal:11434')
+client = Client(host=os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"))
 
 class CodeRequest(BaseModel):
     code: str
@@ -28,7 +30,7 @@ async def spectre_chat(request: CodeRequest):
     """
     
     try:
-        response = client.chat(model='llama3.1', messages=[
+        response = await asyncio.to_thread(client.chat, model='llama3.1:latest', messages=[
             {'role': 'user', 'content': prompt}
         ])
         return {"response": response['message']['content']}
