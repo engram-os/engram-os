@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 from fastapi import APIRouter, HTTPException
@@ -30,7 +31,7 @@ async def generate_commit(request: GitRequest):
     {request.diff[:4000]} 
     """
     
-    response = client.chat(model='llama3.1:latest', messages=[
+    response = await asyncio.to_thread(client.chat, model='llama3.1:latest', messages=[
         {'role': 'user', 'content': prompt}
     ])
 
@@ -61,10 +62,10 @@ async def generate_pr(request: GitRequest):
     {request.diff[:6000]}
     """
     
-    response = client.chat(model='llama3.1:latest', messages=[
+    response = await asyncio.to_thread(client.chat, model='llama3.1:latest', messages=[
         {'role': 'user', 'content': prompt}
     ])
-    
+
     return {"markdown": response['message']['content']}
 
 @router.post("/api/git/safety-check")
