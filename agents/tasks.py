@@ -95,7 +95,21 @@ def run_calendar_agent():
     try:
         recs = qdrant.scroll(
             collection_name=COLLECTION_NAME,
-            limit=20, 
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="user_id",
+                        match=models.MatchValue(value=LOCAL_USER_ID)
+                    )
+                ],
+                must_not=[
+                    models.FieldCondition(
+                        key="status",
+                        match=models.MatchValue(value="processed")
+                    )
+                ]
+            ),
+            limit=20,
             with_payload=True
         )[0]
     except Exception as e:
