@@ -4,13 +4,16 @@ import logging
 import requests
 from core.worker import celery_app
 from qdrant_client import QdrantClient
+from qdrant_client.http import models
 from agents.tools import add_calendar_event
 from agents.logger import log_agent_action
 from agents.gmail_tools import fetch_unread_emails, create_draft_reply
+from core.identity import get_or_create_identity
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 COLLECTION_NAME = "second_brain"
+LOCAL_USER_ID = get_or_create_identity()["user_id"]
 
 qdrant = QdrantClient(host=QDRANT_HOST, port=6333)
 logger = logging.getLogger(__name__)
