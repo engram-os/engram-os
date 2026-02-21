@@ -73,7 +73,7 @@ class IntegrationManager:
         """
         
         try:
-            response = requests.post(url, headers=headers, json={"query": query})
+            response = requests.post(url, headers=headers, json={"query": query}, timeout=(5, 10))
             if response.status_code != 200:
                 return []
                 
