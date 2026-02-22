@@ -3,7 +3,8 @@ import time
 import shutil
 import requests
 import logging
-import pypdf  
+import pypdf
+from identity import get_or_create_identity
 
 API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
 
@@ -15,6 +16,9 @@ PROCESSED_DIR = os.path.join(INBOX_DIR, "processed")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+IDENTITY = get_or_create_identity()
+LOCAL_USER_ID = IDENTITY["user_id"]
 
 os.makedirs(INBOX_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
