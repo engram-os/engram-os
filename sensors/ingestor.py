@@ -78,7 +78,7 @@ def scan_inbox():
             continue
 
         try:
-            res = requests.post(API_URL, json={"text": content, "user_id": "LOCAL_USER_ID"}, timeout=(5, 10))
+            res = requests.post(API_URL, json={"text": content, "user_id": LOCAL_USER_ID}, timeout=(5, 10))
             
             if res.status_code == 200:
                 logger.info(f"Ingested Memory")
