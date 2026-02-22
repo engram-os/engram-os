@@ -21,7 +21,7 @@ TEMP_DB = os.path.join(DBS_DIR, "history_copy.db")
 
 HISTORY_PATH = os.path.expanduser("~/Library/Application Support/Google/Chrome/Default/History")
 
-API_URL = "http://localhost:8000/ingest"
+API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
