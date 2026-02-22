@@ -8,7 +8,7 @@ import time
 from scipy.io.wavfile import write
 from core.identity import get_or_create_identity
 
-API_URL = "http://localhost:8000/chat"
+API_URL = os.getenv("BRAIN_API_URL", "http://localhost:8000/chat")
 WHISPER_MODEL_SIZE = "base" 
 
 IDENTITY = get_or_create_identity()
