@@ -8,6 +8,7 @@ DBS_DIR = os.path.join(root_dir, "data", "dbs")
 os.makedirs(DBS_DIR, exist_ok=True)
 DB_PATH = os.path.join(DBS_DIR, "agent_activity.db")
 
+
 def init_db():
     """Creates the log table if it doesn't exist."""
     conn = sqlite3.connect(DB_PATH)
@@ -21,13 +22,16 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+init_db()
+
+
 def log_agent_action(agent_name, action_type, details):
     """
     Logs an agent action to the database with a UTC timestamp.
     action_type options: 'THINKING', 'TOOL_USE', 'DECISION', 'ERROR'
     """
     try:
-        init_db() 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
