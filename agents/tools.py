@@ -1,26 +1,16 @@
-import os.path
 import logging
 import datetime
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from agents.auth import get_google_credentials
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 def get_calendar_service():
     """Authenticates using the token.json generated locally."""
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            logger.error("Token expired or missing. Run generate_token.py on Host.")
-            return None
+    creds = get_google_credentials()
+    if not creds:
+        return None
 
     return build('calendar', 'v3', credentials=creds)
 
