@@ -94,9 +94,11 @@ def scan_inbox():
                 logger.info(f"-> Moved to 'processed/'")
             else:
                 logger.error(f"API Error: {res.status_code}")
-                
+                had_error = True
+
         except Exception as e:
             logger.error(f"Connection Failed (Is the Brain online?): {e}")
+            had_error = True
 
 if __name__ == "__main__":
     print("------------------------------------------------")
