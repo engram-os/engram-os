@@ -57,6 +57,7 @@ def sync_history():
         logger.error(f"Could not copy DB: {e}")
         return
 
+    had_error = False
     try:
         conn = sqlite3.connect(TEMP_DB)
         cursor = conn.cursor()
@@ -79,7 +80,6 @@ def sync_history():
         if rows:
             logger.info(f"Found {len(rows)} new pages visited.")
 
-        had_error = False
         for url, title, visit_time in rows:
             visit_time_sec = (visit_time / 1000000) - 11644473600
             readable_time = datetime.fromtimestamp(visit_time_sec).strftime('%Y-%m-%d %H:%M:%S')
