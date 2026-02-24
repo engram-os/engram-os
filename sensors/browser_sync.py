@@ -119,6 +119,17 @@ if __name__ == "__main__":
     logger.info(f"Storing timestamp in: {TIMESTAMP_FILE}")
     logger.info("---------------------------------------")
     
+    BASE_SLEEP = 60
+    MAX_SLEEP = 3600
+    consecutive_errors = 0
+
     while True:
-        sync_history()
-        time.sleep(60)
+        had_error = sync_history()
+        if had_error:
+            consecutive_errors += 1
+            sleep_for = min(BASE_SLEEP * (2 ** consecutive_errors), MAX_SLEEP)
+            logger.warning(f"API errors detected. Backing off for {sleep_for}s (attempt {consecutive_errors})")
+        else:
+            consecutive_errors = 0
+            sleep_for = BASE_SLEEP
+        time.sleep(sleep_for)
