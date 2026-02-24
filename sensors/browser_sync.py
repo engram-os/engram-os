@@ -78,7 +78,8 @@ def sync_history():
         
         if rows:
             logger.info(f"Found {len(rows)} new pages visited.")
-        
+
+        had_error = False
         for url, title, visit_time in rows:
             visit_time_sec = (visit_time / 1000000) - 11644473600
             readable_time = datetime.fromtimestamp(visit_time_sec).strftime('%Y-%m-%d %H:%M:%S')
@@ -99,6 +100,7 @@ def sync_history():
                     }, timeout=(5, 10))
             except:
                 logger.error("Failed to send to API")
+                had_error = True
 
         conn.close()
         
@@ -107,6 +109,8 @@ def sync_history():
             
     except Exception as e:
         logger.error(f"Error reading history DB: {e}")
+
+    return had_error
 
 if __name__ == "__main__":
     logger.info("---------------------------------------")
