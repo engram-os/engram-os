@@ -100,6 +100,8 @@ def scan_inbox():
             logger.error(f"Connection Failed (Is the Brain online?): {e}")
             had_error = True
 
+    return had_error
+
 if __name__ == "__main__":
     print("------------------------------------------------")
     logger.info(f"File Watcher Active.")
