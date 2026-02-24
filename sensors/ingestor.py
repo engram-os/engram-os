@@ -61,6 +61,7 @@ def scan_inbox():
     if not files:
         return
 
+    had_error = False
     for filename in files:
         if filename.startswith("."): continue 
         
