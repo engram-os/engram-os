@@ -31,10 +31,10 @@ def extract_text(filepath):
     try:
         if ext == '.pdf':
             reader = pypdf.PdfReader(filepath)
-            text = ""
+            parts = []
             for page in reader.pages:
-                page_text = page.extract_text() or ""
-                text += page_text + "\n"
+                parts.append(page.extract_text() or "")
+            text = "\n".join(parts)
             return f"File '{filename}': {text}"
             
         elif ext in ['.txt', '.md', '.py', '.js', '.csv', '.json']:
