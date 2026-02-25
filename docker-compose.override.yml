@@ -1,0 +1,5 @@
+# Dev overrides — applied automatically by `docker compose up`.
+# Do not commit this file if you want production-safe defaults everywhere.
+services:
+  os_layer:
+    command: uvicorn core.brain:app --host 0.0.0.0 --port 8000 --reload
