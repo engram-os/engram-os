@@ -53,6 +53,7 @@ COLLECTION_NAME = "second_brain"
 MAX_CONTEXT_CHARS = 4000
 
 ollama_client = OllamaClient(host=OLLAMA_URL)
+integration_manager = IntegrationManager()
 
 config = {
     "vector_store": {
@@ -112,8 +113,7 @@ def read_root():
 
 @app.get("/api/integrations/briefing")
 def daily_briefing():
-    manager = IntegrationManager()
-    tasks = manager.get_combined_briefing_data()
+    tasks = integration_manager.get_combined_briefing_data()
     
     if not tasks:
         return {"briefing": "No active tasks in Jira/Linear.", "tasks": []}
