@@ -27,7 +27,7 @@ def fetch_unread_emails(limit=5):
         
         email_data = []
         for msg in messages:
-            txt = service.users().messages().get(userId='me', id=msg['id']).execute()
+            txt = service.users().messages().get(userId='me', id=msg['id'], format='metadata', metadataHeaders=['Subject', 'From']).execute()
             payload = txt['payload']
             headers = payload.get("headers")
             
