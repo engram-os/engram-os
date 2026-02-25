@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+from collections import deque
 from urllib.parse import urljoin, urlparse
 import chromadb
 from chromadb.utils import embedding_functions
@@ -28,13 +29,13 @@ class DocSpider:
         return " ".join(text.split())
 
     def crawl(self):
-        queue = [self.base_url]
+        queue = deque([self.base_url])
         pages_crawled = 0
         
         print(f"Doc-Spider starting on: {self.base_url}")
         
         while queue and pages_crawled < self.max_pages:
-            current_url = queue.pop(0)
+            current_url = queue.popleft()
             if current_url in self.visited:
                 continue
             
