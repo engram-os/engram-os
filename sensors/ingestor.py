@@ -4,6 +4,7 @@ import shutil
 import requests
 import logging
 import pypdf
+import docx
 from identity import get_or_create_identity
 
 API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
@@ -37,10 +38,15 @@ def extract_text(filepath):
             text = "\n".join(parts)
             return f"File '{filename}': {text}"
             
+        elif ext == '.docx':
+            doc = docx.Document(filepath)
+            text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            return f"File '{filename}': {text}"
+
         elif ext in ['.txt', '.md', '.py', '.js', '.csv', '.json']:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 return f"File '{filename}': {f.read()}"
-                
+
         else:
             return None
     except Exception as e:
