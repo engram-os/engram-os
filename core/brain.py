@@ -234,6 +234,51 @@ def ingest_file(item: UserInput):
 def search_memory(query: str):
     return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
+@app.get("/api/search/unified")
+def unified_search(query: str, n_results: int = 5):
+    results = []
+
+    # 1. Qdrant — personal memories
+    query_vector = get_embedding(query)
+    if query_vector:
+        try:
+            hits = client.query_points(
+                collection_name=COLLECTION_NAME,
+                query=query_vector,
+                query_filter=models.Filter(must=[
+                    models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID))
+                ]),
+                limit=n_results,
+                score_threshold=0.45
+            )
+            for hit in hits.points:
+                results.append({
+                    "source": "personal_memory",
+                    "content": hit.payload.get("memory", ""),
+                    "score": round(hit.score, 3),
+                    "metadata": {}
+                })
+        except Exception as e:
+            logger.error(f"Qdrant unified search failed: {e}")
+
+    # 2. ChromaDB — doc knowledge
+    try:
+        chroma_res = collection.query(query_texts=[query], n_results=n_results)
+        if chroma_res["documents"]:
+            for i, doc in enumerate(chroma_res["documents"][0]):
+                meta = chroma_res["metadatas"][0][i]
+                distance = chroma_res["distances"][0][i]
+                results.append({
+                    "source": "doc_knowledge",
+                    "content": doc,
+                    "score": round(1 - distance, 3),
+                    "metadata": meta
+                })
+    except Exception as e:
+        logger.error(f"ChromaDB unified search failed: {e}")
+
+    return {"query": query, "results": results, "total": len(results)}
+
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
