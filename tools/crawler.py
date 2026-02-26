@@ -1,3 +1,4 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 from collections import deque
@@ -8,7 +9,11 @@ import uuid
 
 chroma_client = chromadb.PersistentClient(path="./engram_db")
 
-ef = embedding_functions.DefaultEmbeddingFunction()
+OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+ef = embedding_functions.OllamaEmbeddingFunction(
+    url=OLLAMA_URL,
+    model_name="nomic-embed-text:latest"
+)
 
 collection = chroma_client.get_or_create_collection(name="doc_knowledge", embedding_function=ef)
 
