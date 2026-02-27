@@ -206,11 +206,15 @@ with f_center_col:
             elif action == "WAKE_UP": badge_class = "badge-blue"
             
             nice_time = format_log_time(timestamp)
+            safe_time = html_escape_lib.escape(nice_time)
+            safe_agent = html_escape_lib.escape(str(agent))
+            safe_action = html_escape_lib.escape(str(action))
+            safe_details = html_escape_lib.escape(str(details))
 
             st.markdown(f"""
             <div class="log-item">
-                <div class="log-time">{nice_time} • {agent}</div>
-                <div><span class="badge {badge_class}">{action}</span> <span style="color: #212529;">{details}</span></div>
+                <div class="log-time">{safe_time} • {safe_agent}</div>
+                <div><span class="badge {badge_class}">{safe_action}</span> <span style="color: #212529;">{safe_details}</span></div>
             </div>
             """, unsafe_allow_html=True)
    
