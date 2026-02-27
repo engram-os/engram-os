@@ -4,8 +4,8 @@ import logging
 import requests
 import uuid
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 from typing import Optional
 from mem0 import Memory
 from qdrant_client import QdrantClient
@@ -91,15 +91,15 @@ m = Memory.from_config(config)
 client = QdrantClient(host=QDRANT_HOST, port=6333)
 
 class UserInput(BaseModel):
-    text: str
-    embed_text: str | None = None
+    text: str = Field(..., min_length=1, max_length=50_000)
+    embed_text: str | None = Field(default=None, max_length=50_000)
 
 class CrawlRequest(BaseModel):
-    url: str
-    max_pages: int = 10    
+    url: str = Field(..., min_length=1, max_length=2_048)
+    max_pages: int = Field(default=10, ge=1, le=100)
 
 class QueryRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=1_000)
 
 def get_embedding(text):
     try:
