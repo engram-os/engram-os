@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import os
 import sys
+import html as html_escape_lib
 from datetime import datetime
 from PIL import Image
 
@@ -161,9 +162,10 @@ with center_col:
                 res = requests.post(f"{API_URL}/chat", json={"text": user_input}, timeout=(5, 60))
                 if res.status_code == 200:
                     data = res.json()
+                    safe_reply = html_escape_lib.escape(data.get('reply', ''))
                     st.markdown(f"""
                     <div style="background: white; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #E9ECEF; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                        <b>Engram:</b> {data['reply']}
+                        <b>Engram:</b> {safe_reply}
                     </div>
                     """, unsafe_allow_html=True)
                     with st.expander("View Context"):
