@@ -110,6 +110,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+_PASSPHRASE = os.getenv("DASHBOARD_PASSPHRASE", "")
+if _PASSPHRASE:
+    if not st.session_state.get("authenticated"):
+        st.markdown("## Engram OS — Authentication Required")
+        entered = st.text_input("Passphrase", type="password", placeholder="Enter dashboard passphrase")
+        if st.button("Unlock"):
+            if entered == _PASSPHRASE:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect passphrase.")
+        st.stop()
+
 if JS_AVAILABLE:
     tz_name = st_javascript("Intl.DateTimeFormat().resolvedOptions().timeZone")
     if isinstance(tz_name, str) and tz_name:
