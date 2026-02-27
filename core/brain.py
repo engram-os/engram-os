@@ -236,11 +236,14 @@ def ingest_file(item: UserInput):
     return {"status": "raw_data_saved", "id": point_id}
 
 @app.get("/search")
-def search_memory(query: str):
+def search_memory(query: str = Query(..., min_length=1, max_length=1_000)):
     return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
 @app.get("/api/search/unified")
-def unified_search(query: str, n_results: int = 5):
+def unified_search(
+    query: str = Query(..., min_length=1, max_length=1_000),
+    n_results: int = Query(default=5, ge=1, le=50),
+):
     results = []
 
     # 1. Qdrant — personal memories
