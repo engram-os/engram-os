@@ -28,8 +28,9 @@ services:
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333 
+      - QDRANT_PORT=6333
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
