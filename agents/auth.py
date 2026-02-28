@@ -23,6 +23,9 @@ def get_google_credentials():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            with open(TOKEN_PATH, "w") as f:
+                f.write(creds.to_json())
+            logger.info("Google OAuth token refreshed and persisted.")
         else:
             logger.error("Google token missing or expired. Run scripts/generate_token.py.")
             return None
