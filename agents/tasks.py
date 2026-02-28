@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import requests
@@ -193,7 +194,12 @@ def run_calendar_agent():
             
             # B. Marking done (The Fix for Loops)
             raw_id = str(decision.get("memory_id")).strip()
-            real_id = id_map.get(raw_id)
+            uuid_match = re.search(
+                r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+                raw_id, re.IGNORECASE
+            )
+            normalized_id = uuid_match.group(0) if uuid_match else raw_id
+            real_id = id_map.get(normalized_id)
 
             if real_id:
                 # Updating the database entry to say "status: processed"
