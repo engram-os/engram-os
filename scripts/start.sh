@@ -6,11 +6,23 @@ NC='\033[0m'
 
 init_local_ai() {
   printf "${CYAN}Starting Engram...${NC}\n"
+  IDENTITY_FILE="$HOME/.engram/identity.json"
+  if [ -f "$IDENTITY_FILE" ]; then
+    export ENGRAM_USER_ID=$(python3 -c "import json; print(json.load(open('$IDENTITY_FILE'))['user_id'])")
+  else
+    export ENGRAM_USER_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
+    mkdir -p "$HOME/.engram"
+    python3 -c "import json, datetime, os
+data = {'user_id': '$ENGRAM_USER_ID', 'created_at': str(datetime.datetime.now()), 'machine': os.uname().nodename}
+json.dump(data, open('$IDENTITY_FILE', 'w'), indent=2)"
+    chmod 600 "$IDENTITY_FILE"
+  fi
+  printf "${GREEN}User identity: ${ENGRAM_USER_ID}${NC}\n"
 
   printf "${GREEN}Starting Docker Infrastructure...${NC}\n"
-  
+
   mkdir -p data/logs
-  
+
   docker-compose up -d
 
   run_processes() {
