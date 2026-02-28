@@ -9,4 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Run as a non-root user. A container escape or RCE vulnerability as root
+# maps to host root on Linux — a non-root user breaks that escalation path.
+RUN useradd --uid 1001 --no-create-home --shell /bin/false engram \
+    && chown -R engram:engram /app
+USER engram
+
+CMD ["uvicorn", "core.brain:app", "--host", "0.0.0.0", "--port", "8000"]
