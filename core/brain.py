@@ -4,7 +4,8 @@ import logging
 import requests
 import uuid
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Security, Depends
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import Optional
 from mem0 import Memory
@@ -53,6 +54,15 @@ app.include_router(git_router)
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+
+# API key auth — only enforced when ENGRAM_API_KEY is set in the environment.
+# When unset, all requests pass through (backward-compatible for local dev).
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+_ENGRAM_API_KEY = os.getenv("ENGRAM_API_KEY")
+
+def verify_api_key(key: str | None = Security(_api_key_header)):
+    if _ENGRAM_API_KEY and key != _ENGRAM_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid or missing API key.")
 COLLECTION_NAME = "second_brain"
 MAX_CONTEXT_CHARS = 4000
 
@@ -116,7 +126,7 @@ def read_root():
     return {"status": "Engram is Online", "version": "1.0.0"}
 
 @app.get("/api/integrations/briefing")
-def daily_briefing():
+def daily_briefing(_: None = Depends(verify_api_key)):
     tasks = integration_manager.get_combined_briefing_data()
     
     if not tasks:
@@ -134,7 +144,7 @@ def daily_briefing():
     return {"briefing": response['message']['content'], "tasks": tasks}
 
 @app.post("/api/docs/ingest")
-async def ingest_docs(request: CrawlRequest):
+async def ingest_docs(request: CrawlRequest, _: None = Depends(verify_api_key)):
     if not is_safe_url(request.url):
         raise HTTPException(status_code=400, detail="URL targets a blocked or private network resource.")
     spider = DocSpider(request.url, max_pages=request.max_pages)
@@ -142,7 +152,7 @@ async def ingest_docs(request: CrawlRequest):
     return {"status": "success", "message": f"Ingested {request.url}"}
 
 @app.post("/api/docs/query")
-def query_docs(request: QueryRequest):
+def query_docs(request: QueryRequest, _: None = Depends(verify_api_key)):
     results = collection.query(query_texts=[request.query], n_results=3)
     context_parts = []
     sources = []
@@ -175,12 +185,12 @@ async def trigger_email_check():
     return {"message": "Email Agent activated", "task_id": task.id}
 
 @app.post("/add-memory")
-def add_memory(item: UserInput):
+def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
     m.add(item.text, user_id=LOCAL_USER_ID)
     return {"status": "profile_updated"}
 
 @app.post("/ingest")
-def ingest_file(item: UserInput):
+def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
 
     text_to_embed = item.embed_text if item.embed_text is not None else item.text
 
@@ -237,13 +247,14 @@ def ingest_file(item: UserInput):
     return {"status": "raw_data_saved", "id": point_id}
 
 @app.get("/search")
-def search_memory(query: str = Query(..., min_length=1, max_length=1_000)):
+def search_memory(query: str = Query(..., min_length=1, max_length=1_000), _: None = Depends(verify_api_key)):
     return {"results": m.search(query, user_id=LOCAL_USER_ID)}
 
 @app.get("/api/search/unified")
 def unified_search(
     query: str = Query(..., min_length=1, max_length=1_000),
     n_results: int = Query(default=5, ge=1, le=50),
+    _: None = Depends(verify_api_key),
 ):
     results = []
 
@@ -289,7 +300,7 @@ def unified_search(
     return {"query": query, "results": results, "total": len(results)}
 
 @app.post("/chat")
-def chat_with_memory(item: UserInput):
+def chat_with_memory(item: UserInput, _: None = Depends(verify_api_key)):
     query_vector = get_embedding(item.text)
     if not query_vector:
         return {"reply": "Embedding Error", "context_used": []}

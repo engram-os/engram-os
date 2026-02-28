@@ -36,6 +36,10 @@ except Exception:
 
 API_URL = "http://ai_os_api:8000"
 
+# Pass the API key on every brain request if one is configured.
+_api_key = os.getenv("ENGRAM_API_KEY", "")
+API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
+
 st.set_page_config(
     page_title="Engram OS",
     page_icon=icon_image,
@@ -164,7 +168,7 @@ with center_col:
 
     if save_btn and user_input:
         try:
-            requests.post(f"{API_URL}/ingest", json={"text": user_input}, timeout=(5, 10))
+            requests.post(f"{API_URL}/ingest", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 10))
             st.toast("Memory saved successfully!", icon="✅")
         except:
             st.error("Could not connect to Brain.")
