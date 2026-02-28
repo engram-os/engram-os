@@ -176,7 +176,7 @@ with center_col:
     if chat_btn and user_input:
         with st.spinner("Processing..."):
             try:
-                res = requests.post(f"{API_URL}/chat", json={"text": user_input}, timeout=(5, 60))
+                res = requests.post(f"{API_URL}/chat", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 60))
                 if res.status_code == 200:
                     data = res.json()
                     safe_reply = html_escape_lib.escape(data.get('reply', ''))
@@ -196,11 +196,11 @@ with center_col:
         c_a, c_b = st.columns(2)
         with c_a:
             if st.button("Trigger Calendar Agent", use_container_width=True, type="secondary"):
-                requests.post(f"{API_URL}/run-agents/calendar", timeout=(5, 10))
+                requests.post(f"{API_URL}/run-agents/calendar", headers=API_HEADERS, timeout=(5, 10))
                 st.toast("Calendar Agent Started")
         with c_b:
             if st.button("Trigger Email Agent", use_container_width=True, type="secondary"):
-                requests.post(f"{API_URL}/run-agents/email", timeout=(5, 10))
+                requests.post(f"{API_URL}/run-agents/email", headers=API_HEADERS, timeout=(5, 10))
                 st.toast("Email Agent Started")
 
 st.markdown("###") 
