@@ -211,7 +211,10 @@ def run_calendar_agent():
                 )
                 log_agent_action("CalendarAgent", "UPDATE", f"Success: Marked {real_id} as processed.")
             else:
-                log_agent_action("CalendarAgent", "WARNING", f"Could not find ID '{raw_id}' in map. Update failed.")
+                log_agent_action("CalendarAgent", "WARNING",
+                    f"Could not find ID '{raw_id}' (normalized: '{normalized_id}') in id_map. "
+                    f"Known keys: {list(id_map.keys())[:5]}. Memory will NOT be marked processed."
+                )
             
             return {"status": "scheduled", "details": decision}
             
