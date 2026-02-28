@@ -101,7 +101,7 @@ class CrawlRequest(BaseModel):
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1_000)
 
-def get_embedding(text):
+def get_embedding(text) -> list[float] | None:
     try:
         res = requests.post(f"{OLLAMA_URL}/api/embeddings", json={
             "model": "nomic-embed-text:latest",
@@ -110,7 +110,7 @@ def get_embedding(text):
         return res.json()["embedding"]
     except Exception as e:
         logger.error(f"Embedding failed: {e}")
-        return []
+        return None
 
 @app.get("/")
 def read_root():
@@ -290,7 +290,7 @@ def unified_search(
 @app.post("/chat")
 def chat_with_memory(item: UserInput):
     query_vector = get_embedding(item.text)
-    if query_vector is None:
+    if not query_vector:
         return {"reply": "Embedding Error", "context_used": []}
 
     try:
