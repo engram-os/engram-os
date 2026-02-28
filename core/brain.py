@@ -24,7 +24,8 @@ from agents.git_automator import router as git_router
 from core.identity import get_or_create_identity
 
 from tools.visualizer import router as visualizer_router
-from tools.crawler import DocSpider, collection 
+from tools.crawler import DocSpider, collection
+from core.network_gateway import is_safe_url
 from tools.pm_tools import IntegrationManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -136,6 +137,8 @@ def daily_briefing():
 
 @app.post("/api/docs/ingest")
 async def ingest_docs(request: CrawlRequest):
+    if not is_safe_url(request.url):
+        raise HTTPException(status_code=400, detail="URL targets a blocked or private network resource.")
     spider = DocSpider(request.url, max_pages=request.max_pages)
     await asyncio.to_thread(spider.crawl)
     return {"status": "success", "message": f"Ingested {request.url}"}
