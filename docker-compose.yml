@@ -50,6 +50,8 @@ services:
       - "8501:8501"
     volumes:
       - .:/app
+    environment:
+      - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     depends_on:
       - os_layer
     networks:
@@ -78,7 +80,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333 
+      - QDRANT_PORT=6333
+      - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     extra_hosts:  
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -100,6 +103,7 @@ services:
     command: celery -A core.worker.celery_app beat --loglevel=info --schedule /app/data/celerybeat-schedule
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     depends_on:
       - redis
     volumes:
