@@ -1,6 +1,8 @@
 import os
+import signal
 import sqlite3
 import shutil
+import sys
 import time
 import requests
 import logging
@@ -98,7 +100,7 @@ def sync_history():
                     "embed_text": embed_text,
                     "type": "browsing_event"
                     }, timeout=(5, 10))
-            except:
+            except Exception:
                 logger.error("Failed to send to API")
                 had_error = True
 
@@ -112,13 +114,20 @@ def sync_history():
 
     return had_error
 
+def _handle_shutdown(sig, frame):
+    logger.info(f"Received signal {sig}. Browser watcher shutting down cleanly.")
+    sys.exit(0)
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
+
     logger.info("---------------------------------------")
     logger.info(f"Browser Watcher Active.")
     logger.info(f"Storing temp DB in: {DBS_DIR}")
     logger.info(f"Storing timestamp in: {TIMESTAMP_FILE}")
     logger.info("---------------------------------------")
-    
+
     BASE_SLEEP = 60
     MAX_SLEEP = 3600
     consecutive_errors = 0
