@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import time
 import shutil
 import requests
@@ -80,7 +82,7 @@ def scan_inbox():
             logger.warning(f"   Skipping unknown file type: {filename}")
             try:
                 shutil.move(filepath, os.path.join(PROCESSED_DIR, filename))
-            except:
+            except Exception:
                 pass
             continue
 
@@ -108,7 +110,14 @@ def scan_inbox():
 
     return had_error
 
+def _handle_shutdown(sig, frame):
+    logger.info(f"Received signal {sig}. File watcher shutting down cleanly.")
+    sys.exit(0)
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _handle_shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
+
     print("------------------------------------------------")
     logger.info(f"File Watcher Active.")
     logger.info(f"Watching: {INBOX_DIR}")
