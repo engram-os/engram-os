@@ -170,7 +170,7 @@ with center_col:
         try:
             requests.post(f"{API_URL}/ingest", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 10))
             st.toast("Memory saved successfully!", icon="✅")
-        except:
+        except requests.RequestException:
             st.error("Could not connect to Brain.")
 
     if chat_btn and user_input:
@@ -187,7 +187,7 @@ with center_col:
                     """, unsafe_allow_html=True)
                     with st.expander("View Context"):
                         st.json(data['context_used'])
-            except:
+            except requests.RequestException:
                 st.error("Engram is offline.")
 
     st.markdown("---") 

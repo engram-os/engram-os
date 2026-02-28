@@ -37,7 +37,7 @@ def get_last_timestamp():
         try:
             with open(TIMESTAMP_FILE, "r") as f:
                 return float(f.read().strip())
-        except:
+        except Exception:
             return 0.0
     return 0.0
 

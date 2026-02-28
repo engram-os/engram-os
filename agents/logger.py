@@ -54,5 +54,5 @@ def get_recent_logs(limit=20):
         data = c.fetchall()
         conn.close()
         return data
-    except:
+    except Exception:
         return []
