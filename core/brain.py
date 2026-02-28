@@ -23,7 +23,6 @@ from agents.git_automator import router as git_router
 
 from core.identity import get_or_create_identity
 
-from tools.visualizer import router as visualizer_router
 from tools.crawler import DocSpider, collection
 from core.network_gateway import is_safe_url
 from tools.pm_tools import IntegrationManager
@@ -50,7 +49,6 @@ app.add_middleware(
 
 app.include_router(terminal_router)
 app.include_router(spectre_router)
-app.include_router(visualizer_router)
 app.include_router(git_router)
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
