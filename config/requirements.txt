@@ -20,3 +20,8 @@ requests
 streamlit-javascript
 python-docx
 python-dateutil
+
+# dev / testing
+pytest
+pytest-mock
+httpx
