@@ -1,10 +1,66 @@
 import base64
 import logging
+import os
+import sqlite3
+import datetime
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 from agents.auth import get_google_credentials
 
 logger = logging.getLogger(__name__)
+
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_root_dir = os.path.dirname(_current_dir)
+_DBS_DIR = os.path.join(_root_dir, "data", "dbs")
+_PROCESSED_DB = os.path.join(_DBS_DIR, "processed_emails.db")
+
+
+def _init_processed_db() -> None:
+    os.makedirs(_DBS_DIR, exist_ok=True)
+    conn = sqlite3.connect(_PROCESSED_DB, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS processed_emails "
+        "(email_id TEXT PRIMARY KEY, draft_id TEXT, processed_at TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+
+_init_processed_db()
+
+
+def is_email_processed(email_id: str) -> bool:
+    """Return True if this email has already been acted on."""
+    try:
+        conn = sqlite3.connect(_PROCESSED_DB, check_same_thread=False)
+        row = conn.execute(
+            "SELECT 1 FROM processed_emails WHERE email_id = ?", (email_id,)
+        ).fetchone()
+        conn.close()
+        return row is not None
+    except Exception as e:
+        logger.error(f"processed_emails lookup failed: {e}")
+        return False
+
+
+def record_processed_email(email_id: str, draft_id: str) -> None:
+    """Record that a draft was created for this email.
+
+    Must be called immediately after draft creation — before any follow-up
+    actions like mark-as-read — so idempotency is locked in even if later
+    steps fail.
+    """
+    try:
+        conn = sqlite3.connect(_PROCESSED_DB, check_same_thread=False)
+        conn.execute(
+            "INSERT OR IGNORE INTO processed_emails (email_id, draft_id, processed_at) VALUES (?, ?, ?)",
+            (email_id, draft_id, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to record processed email {email_id}: {e}")
 
 
 def _get_header(headers: list, name: str, default: str = "") -> str:
@@ -102,3 +158,25 @@ def create_draft_reply(email_id, reply_body):
     except Exception as e:
         logger.error(f"Draft Error: {e}")
         return {"status": "error", "details": str(e)}
+
+
+def mark_email_as_read(email_id: str) -> bool:
+    """Remove the UNREAD label from a message.
+
+    Best-effort: always called after record_processed_email so a failure here
+    does not cause re-processing. Returns True on success, False on failure.
+    """
+    service = get_gmail_service()
+    if not service:
+        return False
+    try:
+        service.users().messages().modify(
+            userId='me',
+            id=email_id,
+            body={'removeLabelIds': ['UNREAD']}
+        ).execute()
+        logger.info(f"Marked {email_id} as read.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to mark {email_id} as read (non-critical): {e}")
+        return False
