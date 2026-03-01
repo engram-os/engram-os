@@ -19,3 +19,4 @@ jira
 requests
 streamlit-javascript
 python-docx
+python-dateutil
