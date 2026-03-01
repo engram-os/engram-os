@@ -66,6 +66,10 @@ def run_email_agent():
 
     # 2. Thinking (In loop)
     for email in emails:
+        if is_email_processed(email['id']):
+            log_agent_action("EmailAgent", "SKIP", f"Already processed: {email['id']}")
+            continue
+
         if "noreply" in email['sender'] or "newsletter" in email['sender']:
             continue
             
@@ -111,10 +115,17 @@ def run_email_agent():
                 continue
 
             if decision.get("action") == "draft_reply":
-               # 3. Action
+                # 3. Action
                 log_agent_action("EmailAgent", "DECISION", f"Drafting reply to {email['sender']}")
-                create_draft_reply(email['id'], decision['reply_text'])
+                draft_result = create_draft_reply(email['id'], decision['reply_text'])
                 log_agent_action("EmailAgent", "TOOL_USE", f"Saved Draft: Re: {email['subject']}")
+
+                # Lock idempotency immediately — before any follow-up steps that may fail.
+                record_processed_email(email['id'], draft_result.get('draft_id', ''))
+
+                # Best-effort: failure here does not cause re-processing (DB record above handles it).
+                if not mark_email_as_read(email['id']):
+                    log_agent_action("EmailAgent", "WARNING", f"mark-as-read failed for {email['id']} — idempotency held by DB.")
 
         except Exception as e:
             log_agent_action("EmailAgent", "ERROR", f"Failed on {email['id']}: {e}")
