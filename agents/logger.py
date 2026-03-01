@@ -11,7 +11,9 @@ DB_PATH = os.path.join(DBS_DIR, "agent_activity.db")
 
 def init_db():
     """Creates the log table if it doesn't exist."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS activity_log
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,6 +21,7 @@ def init_db():
                   agent_name TEXT,
                   action_type TEXT,
                   details TEXT)''')
+    c.execute("CREATE INDEX IF NOT EXISTS idx_activity_log_id ON activity_log(id DESC)")
     conn.commit()
     conn.close()
 
@@ -32,7 +35,7 @@ def log_agent_action(agent_name, action_type, details):
     action_type options: 'THINKING', 'TOOL_USE', 'DECISION', 'ERROR'
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         c = conn.cursor()
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         c.execute(
@@ -48,7 +51,7 @@ def get_recent_logs(limit=20):
     try:
         if not os.path.exists(DB_PATH):
             return []
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         c = conn.cursor()
         c.execute("SELECT timestamp, agent_name, action_type, details FROM activity_log ORDER BY id DESC LIMIT ?", (limit,))
         data = c.fetchall()
