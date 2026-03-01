@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Literal
 from mem0 import Memory
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -99,9 +99,12 @@ config = {
 m = Memory.from_config(config)
 client = QdrantClient(host=QDRANT_HOST, port=6333)
 
+_VALID_CONTENT_TYPES = Literal["raw_ingestion", "browsing_event", "file_ingest", "explicit_memory"]
+
 class UserInput(BaseModel):
     text: str = Field(..., min_length=1, max_length=50_000)
     embed_text: str | None = Field(default=None, max_length=50_000)
+    type: _VALID_CONTENT_TYPES = Field(default="raw_ingestion")
 
 class CrawlRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2_048)
@@ -198,7 +201,7 @@ def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
     if not vector: 
         raise HTTPException(status_code=500, detail="Embedding failed")
 
-    content_type = getattr(item, "type", "raw_ingestion")
+    content_type = item.type
     
     similar = client.query_points(
         collection_name=COLLECTION_NAME, 
