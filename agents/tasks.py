@@ -19,6 +19,33 @@ LOCAL_USER_ID = get_or_create_identity()["user_id"]
 qdrant = QdrantClient(host=QDRANT_HOST, port=6333)
 logger = logging.getLogger(__name__)
 
+
+def parse_llm_json(raw: str, context: str) -> dict | None:
+    """Safely extract a JSON object from an LLM response string.
+
+    Handles: well-formed JSON, markdown code fences, and JSON embedded in
+    surrounding prose. Returns None (never raises) on complete parse failure.
+    """
+    # Strip markdown code fences if present
+    cleaned = re.sub(r"```(?:json)?\s*|\s*```", "", raw).strip()
+
+    # Fast path: well-formed JSON
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: extract first {...} block (handles prose-wrapped JSON)
+    match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    logger.error(f"parse_llm_json [{context}]: could not parse response: {raw[:500]!r}")
+    return None
+
 @celery_app.task(name="agents.tasks.run_email_agent")
 def run_email_agent():
     log_agent_action("EmailAgent", "WAKE_UP", "Checking Inbox for unread messages...")
@@ -71,14 +98,18 @@ def run_email_agent():
         
         try:
             response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
-            decision = json.loads(response['message']['content'])
+            decision = parse_llm_json(response['message']['content'], f"email {email['id']}")
+
+            if decision is None:
+                log_agent_action("EmailAgent", "ERROR", f"LLM parse failed for {email['id']} — skipping.")
+                continue
 
             if decision.get("action") == "draft_reply":
                # 3. Action
                 log_agent_action("EmailAgent", "DECISION", f"Drafting reply to {email['sender']}")
                 create_draft_reply(email['id'], decision['reply_text'])
                 log_agent_action("EmailAgent", "TOOL_USE", f"Saved Draft: Re: {email['subject']}")
-                
+
         except Exception as e:
             log_agent_action("EmailAgent", "ERROR", f"Failed on {email['id']}: {e}")
             
@@ -177,8 +208,12 @@ def run_calendar_agent():
     try:
         response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
         content = response['message']['content']
-        decision = json.loads(content)
-        
+        decision = parse_llm_json(content, "calendar agent")
+
+        if decision is None:
+            log_agent_action("CalendarAgent", "ERROR", "LLM parse failed — no action taken.")
+            return {"status": "error", "reason": "parse_failed"}
+
         action = decision.get('action')
         log_agent_action("CalendarAgent", "DECISION", f"AI decided to: {action}")
 
