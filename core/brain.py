@@ -16,7 +16,7 @@ import hashlib
 import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
-from agents.logger import verify_audit_chain
+from agents.logger import verify_audit_chain, log_agent_action
 from core.schemas import ChatResponse, IngestResponse, AuditVerifyResponse
 from ollama import Client as OllamaClient
 
@@ -199,6 +199,7 @@ async def trigger_email_check():
 @app.post("/add-memory")
 def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
     m.add(item.text, user_id=LOCAL_USER_ID)
+    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", "explicit_memory")
     return {"status": "profile_updated"}
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -256,11 +257,15 @@ def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
             }
         )]
     )
+    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", f"type={content_type}", resource_id=point_id)
     return {"status": "raw_data_saved", "id": point_id}
 
 @app.get("/search")
 def search_memory(query: str = Query(..., min_length=1, max_length=1_000), _: None = Depends(verify_api_key)):
-    return {"results": m.search(query, user_id=LOCAL_USER_ID)}
+    results = m.search(query, user_id=LOCAL_USER_ID)
+    query_hash = hashlib.sha256(query.encode()).hexdigest()
+    log_agent_action(f"user:{LOCAL_USER_ID}", "READ", f"query_hash={query_hash}")
+    return {"results": results}
 
 @app.get("/api/search/unified")
 def unified_search(
@@ -378,6 +383,12 @@ def chat_with_memory(item: UserInput, _: None = Depends(verify_api_key)):
             timeout=60
         )
         ai_reply = ollama_res.json().get("message", {}).get("content", "Error.")
+        point_ids = ",".join(str(h.id) for h in search_hits)
+        query_hash = hashlib.sha256(item.text.encode()).hexdigest()
+        log_agent_action(
+            f"user:{LOCAL_USER_ID}", "READ", f"query_hash={query_hash}",
+            resource_id=point_ids,
+        )
         return {"reply": ai_reply, "context_used": simple_sources}
     except Exception as e:
         logger.error(f"Generation failed: {e}")
