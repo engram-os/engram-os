@@ -22,6 +22,18 @@ DBS_DIR = os.path.join(root_dir, "data", "dbs")
 os.makedirs(DBS_DIR, exist_ok=True)
 DB_PATH = os.path.join(DBS_DIR, "agent_activity.db")
 
+
+def _can_write_db() -> bool:
+    """Return True if DBS_DIR is writable (false in dashboard's read-only mount)."""
+    try:
+        probe = os.path.join(DBS_DIR, ".write_probe")
+        with open(probe, "w"):
+            pass
+        os.unlink(probe)
+        return True
+    except OSError:
+        return False
+
 # Sentinel hash used as prev_entry_hash for the very first row.
 _GENESIS_HASH = "0" * 64
 
