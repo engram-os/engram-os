@@ -8,7 +8,6 @@ from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
-from mem0 import Memory
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,34 +70,6 @@ MAX_CONTEXT_CHARS = 4000
 ollama_client = OllamaClient(host=OLLAMA_URL)
 integration_manager = IntegrationManager()
 
-config = {
-    "vector_store": {
-        "provider": "qdrant",
-        "config": {
-            "host": QDRANT_HOST,
-            "port": 6333,
-            "collection_name": COLLECTION_NAME,
-            "embedding_model_dims": 768, 
-        }
-    },
-    "llm": {
-        "provider": "ollama",
-        "config": {
-            "model": "llama3.1:latest",
-            "ollama_base_url": OLLAMA_URL,
-            "temperature": 0
-        }
-    },
-    "embedder": {
-        "provider": "ollama",
-        "config": {
-            "model": "nomic-embed-text:latest",
-            "ollama_base_url": OLLAMA_URL
-        }
-    }
-}
-
-m = Memory.from_config(config)
 client = QdrantClient(host=QDRANT_HOST, port=6333)
 
 _VALID_CONTENT_TYPES = Literal["raw_ingestion", "browsing_event", "file_ingest", "explicit_memory"]
@@ -198,9 +169,42 @@ async def trigger_email_check():
 
 @app.post("/add-memory")
 def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
-    m.add(item.text, user_id=LOCAL_USER_ID)
-    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", "explicit_memory")
-    return {"status": "profile_updated"}
+    # TODO: DSE-1 — replace raw client.upsert() with EncryptedMemoryClient.write()
+    vector = get_embedding(item.text)
+    if not vector:
+        raise HTTPException(status_code=500, detail="Embedding failed")
+
+    similar = client.query_points(
+        collection_name=COLLECTION_NAME,
+        query=vector,
+        query_filter=models.Filter(must=[
+            models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID)),
+            models.FieldCondition(key="type", match=models.MatchValue(value="explicit_memory")),
+        ]),
+        limit=1,
+        score_threshold=0.97,
+    )
+    if similar.points:
+        return {"status": "duplicate_skipped", "id": similar.points[0].id}
+
+    content_hash = hashlib.sha256(f"{LOCAL_USER_ID}:{item.text}".encode()).hexdigest()
+    point_id = str(uuid.UUID(content_hash[:32]))
+
+    client.upsert(
+        collection_name=COLLECTION_NAME,
+        points=[models.PointStruct(
+            id=point_id,
+            vector=vector,
+            payload={
+                "memory": item.text,
+                "user_id": LOCAL_USER_ID,
+                "type": "explicit_memory",
+                "created_at": str(datetime.now()),
+            }
+        )]
+    )
+    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", "explicit_memory", resource_id=point_id)
+    return {"status": "memory_saved", "id": point_id}
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
@@ -262,7 +266,24 @@ def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
 
 @app.get("/search")
 def search_memory(query: str = Query(..., min_length=1, max_length=1_000), _: None = Depends(verify_api_key)):
-    results = m.search(query, user_id=LOCAL_USER_ID)
+    # TODO: DSE-1 — replace raw client.query_points() with EncryptedMemoryClient.search()
+    query_vector = get_embedding(query)
+    if not query_vector:
+        raise HTTPException(status_code=500, detail="Embedding failed")
+
+    hits = client.query_points(
+        collection_name=COLLECTION_NAME,
+        query=query_vector,
+        query_filter=models.Filter(must=[
+            models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID)),
+        ]),
+        limit=10,
+        score_threshold=0.45,
+    )
+    results = [
+        {"memory": h.payload.get("memory", ""), "score": round(h.score, 3)}
+        for h in hits.points
+    ]
     query_hash = hashlib.sha256(query.encode()).hexdigest()
     log_agent_action(f"user:{LOCAL_USER_ID}", "READ", f"query_hash={query_hash}")
     return {"results": results}

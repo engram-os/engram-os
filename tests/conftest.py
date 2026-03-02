@@ -10,7 +10,6 @@ from fastapi import APIRouter
 
 # ── Third-party packages that connect to external services at import time ─────
 for _mod in [
-    "mem0",
     "qdrant_client", "qdrant_client.http", "qdrant_client.http.models",
     "chromadb",
     "ollama",
