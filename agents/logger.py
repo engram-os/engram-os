@@ -109,7 +109,10 @@ def init_db() -> None:
     conn.close()
 
 
-init_db()
+# Only initialise (and write to) the DB in containers that have write access.
+# The dashboard mounts data/dbs/ read-only and must not call init_db().
+if _can_write_db():
+    init_db()
 
 
 def _get_last_entry_hash(conn: sqlite3.Connection) -> str:
