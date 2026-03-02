@@ -17,6 +17,7 @@ import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
 from agents.logger import verify_audit_chain
+from core.schemas import ChatResponse, IngestResponse, AuditVerifyResponse
 from ollama import Client as OllamaClient
 
 from agents.terminal import router as terminal_router
@@ -130,7 +131,7 @@ def read_root():
     return {"status": "Engram is Online", "version": "1.0.0"}
 
 
-@app.get("/api/audit/verify")
+@app.get("/api/audit/verify", response_model=AuditVerifyResponse)
 def audit_verify(_: None = Depends(verify_api_key)):
     """Walk the full audit log and verify every HMAC chain link is unbroken."""
     return verify_audit_chain()
@@ -200,7 +201,7 @@ def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
     m.add(item.text, user_id=LOCAL_USER_ID)
     return {"status": "profile_updated"}
 
-@app.post("/ingest")
+@app.post("/ingest", response_model=IngestResponse)
 def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
 
     text_to_embed = item.embed_text if item.embed_text is not None else item.text
@@ -310,7 +311,7 @@ def unified_search(
 
     return {"query": query, "results": results, "total": len(results)}
 
-@app.post("/chat")
+@app.post("/chat", response_model=ChatResponse)
 def chat_with_memory(item: UserInput, _: None = Depends(verify_api_key)):
     query_vector = get_embedding(item.text)
     if not query_vector:
