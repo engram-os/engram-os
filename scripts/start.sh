@@ -2,9 +2,77 @@
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
+preflight_checks() {
+  local errors=0
+
+  printf "${CYAN}Running pre-flight checks...${NC}\n"
+
+  # 1. Docker running?
+  if ! docker info > /dev/null 2>&1; then
+    printf "${RED}✗ Docker is not running. Start Docker Desktop first.${NC}\n"
+    errors=$((errors + 1))
+  else
+    printf "${GREEN}✓ Docker is running${NC}\n"
+  fi
+
+  # 2. Ollama reachable?
+  if ! curl -s --max-time 3 http://localhost:11434/ > /dev/null 2>&1; then
+    printf "${RED}✗ Ollama is not running. Start it with: ollama serve${NC}\n"
+    errors=$((errors + 1))
+  else
+    printf "${GREEN}✓ Ollama is reachable${NC}\n"
+  fi
+
+  # 3. .env file present?
+  if [ ! -f .env ]; then
+    printf "${RED}✗ .env file not found. Copy .env.example and fill in values.${NC}\n"
+    errors=$((errors + 1))
+  else
+    printf "${GREEN}✓ .env file present${NC}\n"
+
+    # 4. AUDIT_HMAC_SECRET set? (brain crashes at import if missing)
+    if ! grep -q "^AUDIT_HMAC_SECRET=." .env; then
+      printf "${RED}✗ AUDIT_HMAC_SECRET not set in .env.${NC}\n"
+      printf "   Fix: echo \"AUDIT_HMAC_SECRET=\$(python3 -c 'import secrets; print(secrets.token_hex(32))')\" >> .env\n"
+      errors=$((errors + 1))
+    else
+      printf "${GREEN}✓ AUDIT_HMAC_SECRET is set${NC}\n"
+    fi
+  fi
+
+  # 5. Google OAuth token — warning only (graceful degradation without it)
+  if [ ! -f credentials/token.json ]; then
+    printf "${YELLOW}⚠ credentials/token.json missing — Google Calendar/Gmail features disabled.${NC}\n"
+    printf "   Fix: python3 scripts/generate_token.py\n"
+  else
+    printf "${GREEN}✓ Google OAuth token present${NC}\n"
+  fi
+
+  # 6. Available memory — warning only, Linux only (macOS Docker runs in a VM)
+  if [[ "$(uname)" != "Darwin" ]]; then
+    free_mb=$(free -m | awk '/Mem:/{print $7}')
+    if [ "$free_mb" -lt 2048 ]; then
+      printf "${YELLOW}⚠ Low available memory: ${free_mb}MB free (2048MB recommended).${NC}\n"
+    else
+      printf "${GREEN}✓ Memory OK: ${free_mb}MB available${NC}\n"
+    fi
+  fi
+
+  if [ "$errors" -gt 0 ]; then
+    printf "\n${RED}Pre-flight failed with ${errors} error(s). Fix the above and retry.${NC}\n"
+    exit 1
+  fi
+
+  printf "${GREEN}All checks passed.${NC}\n\n"
+}
+
 init_local_ai() {
+  preflight_checks
+
   printf "${CYAN}Starting Engram...${NC}\n"
   IDENTITY_FILE="$HOME/.engram/identity.json"
   if [ -f "$IDENTITY_FILE" ]; then
