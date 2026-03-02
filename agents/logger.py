@@ -174,11 +174,17 @@ def log_agent_action(
 
 
 def get_recent_logs(limit: int = 20) -> list:
-    """Fetch recent logs for the dashboard. Returns same tuple shape as before."""
+    """Fetch recent logs for the dashboard. Returns same tuple shape as before.
+
+    Uses immutable read-only URI so this works on the dashboard's read-only
+    data/dbs mount without SQLite needing to touch any lock files.
+    """
     try:
         if not os.path.exists(DB_PATH):
             return []
-        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn = sqlite3.connect(
+            f"file:{DB_PATH}?mode=ro&immutable=1", uri=True, check_same_thread=False
+        )
         data = conn.execute(
             "SELECT timestamp_wall, actor_id, action_type, details "
             "FROM activity_log ORDER BY id DESC LIMIT ?",
