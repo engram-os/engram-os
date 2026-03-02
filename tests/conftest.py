@@ -47,3 +47,6 @@ for _router_mod in ["agents.terminal", "agents.spectre", "agents.git_automator"]
 
 # ── Stable test identity (avoids filesystem access in all tests) ──────────────
 os.environ.setdefault("ENGRAM_USER_ID", "test-user-uuid-0001")
+
+# ── Audit log secret (required at agents.logger import time) ──────────────────
+os.environ.setdefault("AUDIT_HMAC_SECRET", "test-audit-hmac-secret-0000000000000000")

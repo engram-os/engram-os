@@ -16,6 +16,7 @@ import hashlib
 import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
+from agents.logger import verify_audit_chain
 from ollama import Client as OllamaClient
 
 from agents.terminal import router as terminal_router
@@ -127,6 +128,13 @@ def get_embedding(text) -> list[float] | None:
 @app.get("/")
 def read_root():
     return {"status": "Engram is Online", "version": "1.0.0"}
+
+
+@app.get("/api/audit/verify")
+def audit_verify(_: None = Depends(verify_api_key)):
+    """Walk the full audit log and verify every HMAC chain link is unbroken."""
+    return verify_audit_chain()
+
 
 @app.get("/api/integrations/briefing")
 def daily_briefing(_: None = Depends(verify_api_key)):

@@ -57,3 +57,5 @@ data/dbs/
 .claude/
 
 notes/
+
+.env
