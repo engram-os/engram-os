@@ -5,10 +5,16 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: ai_os_vault
+    restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
       - ai_os_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 2. The API
   os_layer:
@@ -16,6 +22,7 @@ services:
       context: .
       dockerfile: config/Dockerfile
     container_name: ai_os_api
+    restart: unless-stopped
     command: uvicorn core.brain:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -32,10 +39,17 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - qdrant
-      - redis
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - ai_os_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   # 3. The Dashboard (UI)
   dashboard:
@@ -43,6 +57,7 @@ services:
       context: .
       dockerfile: config/Dockerfile
     container_name: ai_os_dashboard
+    restart: unless-stopped
     command: streamlit run interface/dashboard.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8501:8501"
@@ -51,18 +66,30 @@ services:
     environment:
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     depends_on:
-      - os_layer
+      os_layer:
+        condition: service_healthy
     networks:
       - ai_os_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   # 4. The Message Bus
   redis:
     image: redis:7-alpine
     container_name: engram_redis
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     networks:
       - ai_os_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   # 5. The Worker (Agents)
   celery_worker:
@@ -70,6 +97,7 @@ services:
       context: .
       dockerfile: config/Dockerfile
     container_name: engram_worker
+    restart: unless-stopped
     command: celery -A core.worker.celery_app worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -78,30 +106,39 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
-    extra_hosts:  
+    extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - redis
-      - os_layer 
+      redis:
+        condition: service_healthy
+      os_layer:
+        condition: service_healthy
     volumes:
       - .:/app
       - ./credentials/credentials.json:/app/credentials.json
       - ./credentials/token.json:/app/token.json
-    networks:    
+    networks:
       - ai_os_net
-      
+    healthcheck:
+      test: ["CMD", "celery", "-A", "core.worker.celery_app", "inspect", "ping"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+
   # 6. The Scheduler
   celery_beat:
     build:
       context: .
       dockerfile: config/Dockerfile
     container_name: engram_beat
+    restart: unless-stopped
     command: celery -A core.worker.celery_app beat --loglevel=info --schedule /app/data/celerybeat-schedule
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     volumes:
       - .:/app
     networks:
