@@ -6,6 +6,12 @@ services:
     image: qdrant/qdrant:latest
     container_name: ai_os_vault
     restart: unless-stopped
+    oom_score_adj: -500
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -25,6 +31,12 @@ services:
       dockerfile: config/Dockerfile
     container_name: ai_os_api
     restart: unless-stopped
+    oom_score_adj: -300
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
     command: uvicorn core.brain:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -64,6 +76,12 @@ services:
       dockerfile: config/Dockerfile
     container_name: ai_os_dashboard
     restart: unless-stopped
+    oom_score_adj: 500
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
     command: streamlit run interface/dashboard.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8501:8501"
@@ -92,6 +110,12 @@ services:
     image: redis:7-alpine
     container_name: engram_redis
     restart: unless-stopped
+    oom_score_adj: -400
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     volumes:
       - redis_data:/data
     networks:
@@ -109,6 +133,12 @@ services:
       dockerfile: config/Dockerfile
     container_name: engram_worker
     restart: unless-stopped
+    oom_score_adj: 100
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
     command: celery -A core.worker.celery_app worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -145,6 +175,12 @@ services:
       dockerfile: config/Dockerfile
     container_name: engram_beat
     restart: unless-stopped
+    oom_score_adj: 300
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
     command: celery -A core.worker.celery_app beat --loglevel=info --schedule /app/data/celerybeat-schedule
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
