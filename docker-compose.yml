@@ -69,6 +69,7 @@ services:
       - "8501:8501"
     volumes:
       - ./interface:/app/interface
+      - ./core:/app/core:ro
       - ./agents:/app/agents:ro
       - ./data/dbs:/app/data/dbs:ro
       - ./screenshots:/app/screenshots:ro

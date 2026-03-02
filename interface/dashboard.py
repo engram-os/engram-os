@@ -24,6 +24,7 @@ except ImportError:
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agents.logger import get_recent_logs
+from core.schemas import ChatResponse
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
@@ -178,15 +179,15 @@ with center_col:
             try:
                 res = requests.post(f"{API_URL}/chat", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 60))
                 if res.status_code == 200:
-                    data = res.json()
-                    safe_reply = html_escape_lib.escape(data.get('reply', ''))
+                    chat = ChatResponse.model_validate(res.json())
+                    safe_reply = html_escape_lib.escape(chat.reply)
                     st.markdown(f"""
                     <div style="background: white; padding: 20px; border-radius: 15px; margin-top: 20px; border: 1px solid #E9ECEF; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <b>Engram:</b> {safe_reply}
                     </div>
                     """, unsafe_allow_html=True)
                     with st.expander("View Context"):
-                        st.json(data['context_used'])
+                        st.json(chat.context_used)
             except requests.RequestException:
                 st.error("Engram is offline.")
 
