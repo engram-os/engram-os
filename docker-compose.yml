@@ -27,9 +27,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
-      - ./credentials/credentials.json:/app/credentials.json
-      - ./credentials/token.json:/app/token.json
+      - ./core:/app/core
+      - ./agents:/app/agents
+      - ./tools:/app/tools
+      - ./data:/app/data
+      - ./engram_db:/app/engram_db
+      - ./credentials:/app/credentials:ro
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
@@ -62,7 +65,10 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - .:/app
+      - ./interface:/app/interface
+      - ./agents:/app/agents:ro
+      - ./data/dbs:/app/data/dbs:ro
+      - ./screenshots:/app/screenshots:ro
     environment:
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
     depends_on:
@@ -114,9 +120,10 @@ services:
       os_layer:
         condition: service_healthy
     volumes:
-      - .:/app
-      - ./credentials/credentials.json:/app/credentials.json
-      - ./credentials/token.json:/app/token.json
+      - ./core:/app/core
+      - ./agents:/app/agents
+      - ./data:/app/data
+      - ./credentials:/app/credentials:ro
     networks:
       - ai_os_net
     healthcheck:
@@ -140,7 +147,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - .:/app
+      - ./core:/app/core
+      - ./data:/app/data
     networks:
       - ai_os_net
 
