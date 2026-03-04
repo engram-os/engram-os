@@ -24,6 +24,14 @@ from agents.spectre import router as spectre_router
 from agents.git_automator import router as git_router
 
 from core.identity import get_or_create_identity
+from core.user_registry import (
+    bootstrap_admin, get_user_by_key, create_user, list_users, User,
+)
+from core.matter_registry import (
+    bootstrap_default_matter, get_matter, list_matters_for_user,
+    check_access, grant_access, create_matter as registry_create_matter,
+    close_matter as registry_close_matter,
+)
 
 from tools.crawler import DocSpider, collection
 from core.network_gateway import is_safe_url
@@ -57,13 +65,34 @@ OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 
 # API key auth — only enforced when ENGRAM_API_KEY is set in the environment.
-# When unset, all requests pass through (backward-compatible for local dev).
+# When unset (dev mode), all requests receive a synthetic admin identity
+# backed by LOCAL_USER_ID — zero behaviour change for single-user deployments.
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 _ENGRAM_API_KEY = os.getenv("ENGRAM_API_KEY")
 
-def verify_api_key(key: str | None = Security(_api_key_header)):
-    if _ENGRAM_API_KEY and key != _ENGRAM_API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid or missing API key.")
+
+def get_current_user(raw_key: str | None = Security(_api_key_header)) -> User:
+    if not _ENGRAM_API_KEY:
+        # Dev mode: no auth enforced — synthetic admin using machine identity.
+        return User(id=LOCAL_USER_ID, role="admin", display_name="local-admin")
+    if not raw_key:
+        raise HTTPException(status_code=403, detail="X-API-Key header required.")
+    user = get_user_by_key(raw_key)
+    if not user:
+        raise HTTPException(status_code=403, detail="Invalid API key.")
+    return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return current_user
+
+
+# Seed the user registry and default matter on startup (idempotent).
+if _ENGRAM_API_KEY:
+    bootstrap_admin(LOCAL_USER_ID, _ENGRAM_API_KEY)
+    bootstrap_default_matter(LOCAL_USER_ID)
 COLLECTION_NAME = "second_brain"
 MAX_CONTEXT_CHARS = 4000
 
@@ -78,6 +107,26 @@ class UserInput(BaseModel):
     text: str = Field(..., min_length=1, max_length=50_000)
     embed_text: str | None = Field(default=None, max_length=50_000)
     type: _VALID_CONTENT_TYPES = Field(default="raw_ingestion")
+    matter_id: str | None = Field(default=None, max_length=100)
+
+
+def _resolve_matter(user: User, matter_id: str | None) -> str | None:
+    """Validate matter access and return the resolved matter_id.
+
+    Returns None when matter_id is None — this means 'no filter', preserving
+    full backwards compatibility with untagged legacy data.
+    """
+    if matter_id is None:
+        return None
+    matter = get_matter(matter_id)
+    if not matter:
+        raise HTTPException(status_code=404, detail=f"Matter '{matter_id}' not found.")
+    if matter["status"] == "closed":
+        raise HTTPException(status_code=410, detail=f"Matter '{matter_id}' is closed.")
+    # Admins bypass the access check; regular users must be granted access.
+    if user.role != "admin" and not check_access(user.id, matter_id):
+        raise HTTPException(status_code=403, detail="Access denied to this matter.")
+    return matter_id
 
 class CrawlRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2_048)
@@ -103,13 +152,111 @@ def read_root():
 
 
 @app.get("/api/audit/verify", response_model=AuditVerifyResponse)
-def audit_verify(_: None = Depends(verify_api_key)):
+def audit_verify(current_user: User = Depends(require_admin)):
     """Walk the full audit log and verify every HMAC chain link is unbroken."""
     return verify_audit_chain()
 
 
+# ─── User management endpoints ────────────────────────────────────────────────
+
+@app.get("/api/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "role": current_user.role, "display_name": current_user.display_name}
+
+
+@app.post("/api/users")
+def create_new_user(
+    display_name: str = Query(..., min_length=1, max_length=100),
+    role: str = Query(default="user"),
+    _admin: User = Depends(require_admin),
+):
+    if role not in ("admin", "user"):
+        raise HTTPException(status_code=422, detail="role must be 'admin' or 'user'.")
+    user_id, raw_key = create_user(display_name=display_name, role=role)
+    return {"user_id": user_id, "api_key": raw_key, "display_name": display_name}
+
+
+@app.get("/api/users")
+def list_all_users(_admin: User = Depends(require_admin)):
+    return {"users": list_users()}
+
+
+# ─── Matter management endpoints ─────────────────────────────────────────────
+
+@app.get("/api/matters")
+def get_matters(current_user: User = Depends(get_current_user)):
+    return {"matters": list_matters_for_user(current_user.id)}
+
+
+@app.post("/api/matters")
+def new_matter(
+    name: str = Query(..., min_length=1, max_length=200),
+    current_user: User = Depends(get_current_user),
+):
+    matter_id = registry_create_matter(name=name, created_by=current_user.id)
+    return {"matter_id": matter_id, "name": name}
+
+
+@app.post("/api/matters/{matter_id}/close")
+def close_matter_endpoint(matter_id: str, current_user: User = Depends(get_current_user)):
+    matter = get_matter(matter_id)
+    if not matter:
+        raise HTTPException(status_code=404, detail=f"Matter '{matter_id}' not found.")
+    if matter["status"] == "closed":
+        raise HTTPException(status_code=410, detail=f"Matter '{matter_id}' is already closed.")
+    # Only the creator or an admin can close a matter.
+    if current_user.role != "admin" and matter["created_by"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the matter owner or an admin can close it.")
+
+    # Scroll and batch-delete all Qdrant points for this matter.
+    deleted_count = 0
+    offset = None
+    while True:
+        batch, next_offset = client.scroll(
+            collection_name=COLLECTION_NAME,
+            scroll_filter=models.Filter(must=[
+                models.FieldCondition(key="matter_id", match=models.MatchValue(value=matter_id)),
+            ]),
+            limit=100,
+            offset=offset,
+            with_payload=False,
+        )
+        if not batch:
+            break
+        ids = [p.id for p in batch]
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=models.PointIdsList(points=ids),
+        )
+        deleted_count += len(ids)
+        offset = next_offset
+        if not next_offset:
+            break
+
+    registry_close_matter(matter_id, closed_by=current_user.id)
+    log_agent_action(
+        f"user:{current_user.id}", "DELETE",
+        f"matter_closed:{matter_id}:{deleted_count}_points",
+        resource_id=matter_id,
+    )
+    return {"matter_id": matter_id, "deleted_points": deleted_count}
+
+
+@app.post("/api/matters/{matter_id}/access")
+def grant_matter_access(
+    matter_id: str,
+    user_id: str = Query(..., min_length=1, max_length=100),
+    _admin: User = Depends(require_admin),
+):
+    matter = get_matter(matter_id)
+    if not matter:
+        raise HTTPException(status_code=404, detail=f"Matter '{matter_id}' not found.")
+    grant_access(matter_id=matter_id, user_id=user_id, granted_by=_admin.id)
+    return {"status": "access_granted", "matter_id": matter_id, "user_id": user_id}
+
+
 @app.get("/api/integrations/briefing")
-def daily_briefing(_: None = Depends(verify_api_key)):
+def daily_briefing(current_user: User = Depends(get_current_user)):
     tasks = integration_manager.get_combined_briefing_data()
     
     if not tasks:
@@ -127,7 +274,7 @@ def daily_briefing(_: None = Depends(verify_api_key)):
     return {"briefing": response['message']['content'], "tasks": tasks}
 
 @app.post("/api/docs/ingest")
-async def ingest_docs(request: CrawlRequest, _: None = Depends(verify_api_key)):
+async def ingest_docs(request: CrawlRequest, current_user: User = Depends(get_current_user)):
     if not is_safe_url(request.url):
         raise HTTPException(status_code=400, detail="URL targets a blocked or private network resource.")
     spider = DocSpider(request.url, max_pages=request.max_pages)
@@ -135,7 +282,7 @@ async def ingest_docs(request: CrawlRequest, _: None = Depends(verify_api_key)):
     return {"status": "success", "message": f"Ingested {request.url}"}
 
 @app.post("/api/docs/query")
-def query_docs(request: QueryRequest, _: None = Depends(verify_api_key)):
+def query_docs(request: QueryRequest, current_user: User = Depends(get_current_user)):
     results = collection.query(query_texts=[request.query], n_results=3)
     context_parts = []
     sources = []
@@ -153,41 +300,47 @@ def query_docs(request: QueryRequest, _: None = Depends(verify_api_key)):
     return {"answer": response['message']['content'], "sources": list(set(sources))}
 
 @app.post("/trigger-agent")
-async def trigger_agent_test():
-    task = test_agent_pulse.delay("Hello from API") 
+async def trigger_agent_test(current_user: User = Depends(get_current_user)):
+    task = test_agent_pulse.delay("Hello from API")
     return {"message": "Agent triggered", "task_id": task.id}
 
 @app.post("/run-agents/calendar")
-async def trigger_calendar_check():
-    task = run_calendar_agent.delay()
-    return {"message": "Calendar Agent activated", "task_id": task.id}
+async def trigger_calendar_check(current_user: User = Depends(get_current_user)):
+    task = run_calendar_agent.delay(user_id=current_user.id)
+    return {"message": "Calendar Agent activated", "task_id": task.id, "user_id": current_user.id}
 
 @app.post("/run-agents/email")
-async def trigger_email_check():
-    task = run_email_agent.delay()
-    return {"message": "Email Agent activated", "task_id": task.id}
+async def trigger_email_check(current_user: User = Depends(get_current_user)):
+    task = run_email_agent.delay(user_id=current_user.id)
+    return {"message": "Email Agent activated", "task_id": task.id, "user_id": current_user.id}
 
 @app.post("/add-memory")
-def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
+def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
     # TODO: DSE-1 — replace raw client.upsert() with EncryptedMemoryClient.write()
+    resolved_matter = _resolve_matter(current_user, item.matter_id)
+
     vector = get_embedding(item.text)
     if not vector:
         raise HTTPException(status_code=500, detail="Embedding failed")
 
+    must = [
+        models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id)),
+        models.FieldCondition(key="type", match=models.MatchValue(value="explicit_memory")),
+    ]
+    if resolved_matter is not None:
+        must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
+
     similar = client.query_points(
         collection_name=COLLECTION_NAME,
         query=vector,
-        query_filter=models.Filter(must=[
-            models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID)),
-            models.FieldCondition(key="type", match=models.MatchValue(value="explicit_memory")),
-        ]),
+        query_filter=models.Filter(must=must),
         limit=1,
         score_threshold=0.97,
     )
     if similar.points:
         return {"status": "duplicate_skipped", "id": similar.points[0].id}
 
-    content_hash = hashlib.sha256(f"{LOCAL_USER_ID}:{item.text}".encode()).hexdigest()
+    content_hash = hashlib.sha256(f"{current_user.id}:{item.text}".encode()).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
     client.upsert(
@@ -197,86 +350,92 @@ def add_memory(item: UserInput, _: None = Depends(verify_api_key)):
             vector=vector,
             payload={
                 "memory": item.text,
-                "user_id": LOCAL_USER_ID,
+                "user_id": current_user.id,
+                "matter_id": resolved_matter or "",
                 "type": "explicit_memory",
                 "created_at": str(datetime.now()),
             }
         )]
     )
-    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", "explicit_memory", resource_id=point_id)
+    log_agent_action(f"user:{current_user.id}", "WRITE", "explicit_memory", resource_id=point_id)
     return {"status": "memory_saved", "id": point_id}
 
 @app.post("/ingest", response_model=IngestResponse)
-def ingest_file(item: UserInput, _: None = Depends(verify_api_key)):
+def ingest_file(item: UserInput, current_user: User = Depends(get_current_user)):
+    resolved_matter = _resolve_matter(current_user, item.matter_id)
 
     text_to_embed = item.embed_text if item.embed_text is not None else item.text
-
     vector = get_embedding(text_to_embed)
-    if not vector: 
+    if not vector:
         raise HTTPException(status_code=500, detail="Embedding failed")
 
     content_type = item.type
-    
+
+    must = [
+        models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id)),
+        models.FieldCondition(key="type", match=models.MatchValue(value=content_type)),
+    ]
+    if resolved_matter is not None:
+        must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
+
     similar = client.query_points(
-        collection_name=COLLECTION_NAME, 
-        query=vector, 
-        query_filter=models.Filter(
-        must=[
-            models.FieldCondition(
-                key="user_id", 
-                match=models.MatchValue(value=LOCAL_USER_ID)
-            ),
-            models.FieldCondition(
-                key="type", 
-                match=models.MatchValue(value=content_type)
-            )
-        ]
-    ), 
-    limit=1, 
-    score_threshold=0.97
+        collection_name=COLLECTION_NAME,
+        query=vector,
+        query_filter=models.Filter(must=must),
+        limit=1,
+        score_threshold=0.97,
     )
     if similar.points:
         return {
-            "status": "duplicate_skipped", 
+            "status": "duplicate_skipped",
             "id": similar.points[0].id,
-            "score": similar.points[0].score
-            }
+            "score": similar.points[0].score,
+        }
 
     content_hash = hashlib.sha256(
-        f"{LOCAL_USER_ID}:{text_to_embed}".encode()
+        f"{current_user.id}:{text_to_embed}".encode()
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
     client.upsert(
         collection_name=COLLECTION_NAME,
         points=[models.PointStruct(
-            id=point_id, 
-            vector=vector, 
+            id=point_id,
+            vector=vector,
             payload={
-                "memory": item.text, 
+                "memory": item.text,
                 "embed_text": text_to_embed,
-                "user_id": LOCAL_USER_ID,
-                "type": content_type, 
-                "created_at": str(datetime.now())
+                "user_id": current_user.id,
+                "matter_id": resolved_matter or "",
+                "type": content_type,
+                "created_at": str(datetime.now()),
             }
         )]
     )
-    log_agent_action(f"user:{LOCAL_USER_ID}", "WRITE", f"type={content_type}", resource_id=point_id)
+    log_agent_action(f"user:{current_user.id}", "WRITE", f"type={content_type}", resource_id=point_id)
     return {"status": "raw_data_saved", "id": point_id}
 
 @app.get("/search")
-def search_memory(query: str = Query(..., min_length=1, max_length=1_000), _: None = Depends(verify_api_key)):
+def search_memory(
+    query: str = Query(..., min_length=1, max_length=1_000),
+    matter_id: str | None = Query(default=None, max_length=100),
+    current_user: User = Depends(get_current_user),
+):
     # TODO: DSE-1 — replace raw client.query_points() with EncryptedMemoryClient.search()
+    resolved_matter = _resolve_matter(current_user, matter_id)
+
     query_vector = get_embedding(query)
     if not query_vector:
         raise HTTPException(status_code=500, detail="Embedding failed")
 
+    must = [models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id))]
+    if resolved_matter is not None:
+        must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
+
     hits = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_vector,
-        query_filter=models.Filter(must=[
-            models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID)),
-        ]),
+        query_filter=models.Filter(must=must),
         limit=10,
         score_threshold=0.45,
     )
@@ -285,27 +444,30 @@ def search_memory(query: str = Query(..., min_length=1, max_length=1_000), _: No
         for h in hits.points
     ]
     query_hash = hashlib.sha256(query.encode()).hexdigest()
-    log_agent_action(f"user:{LOCAL_USER_ID}", "READ", f"query_hash={query_hash}")
+    log_agent_action(f"user:{current_user.id}", "READ", f"query_hash={query_hash}")
     return {"results": results}
 
 @app.get("/api/search/unified")
 def unified_search(
     query: str = Query(..., min_length=1, max_length=1_000),
     n_results: int = Query(default=5, ge=1, le=50),
-    _: None = Depends(verify_api_key),
+    matter_id: str | None = Query(default=None, max_length=100),
+    current_user: User = Depends(get_current_user),
 ):
+    resolved_matter = _resolve_matter(current_user, matter_id)
     results = []
 
     # 1. Qdrant — personal memories
     query_vector = get_embedding(query)
     if query_vector:
         try:
+            must = [models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id))]
+            if resolved_matter is not None:
+                must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
             hits = client.query_points(
                 collection_name=COLLECTION_NAME,
                 query=query_vector,
-                query_filter=models.Filter(must=[
-                    models.FieldCondition(key="user_id", match=models.MatchValue(value=LOCAL_USER_ID))
-                ]),
+                query_filter=models.Filter(must=must),
                 limit=n_results,
                 score_threshold=0.45
             )
@@ -338,26 +500,24 @@ def unified_search(
     return {"query": query, "results": results, "total": len(results)}
 
 @app.post("/chat", response_model=ChatResponse)
-def chat_with_memory(item: UserInput, _: None = Depends(verify_api_key)):
+def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_user)):
+    resolved_matter = _resolve_matter(current_user, item.matter_id)
+
     query_vector = get_embedding(item.text)
     if not query_vector:
         return {"reply": "Embedding Error", "context_used": []}
 
     try:
+        must = [models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id))]
+        if resolved_matter is not None:
+            must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
         search_response = client.query_points(
-            collection_name=COLLECTION_NAME, 
-            query=query_vector, 
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="user_id",
-                        match=models.MatchValue(value=LOCAL_USER_ID)
-                    )
-                ]
-            ),
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            query_filter=models.Filter(must=must),
             limit=5,
-            score_threshold=0.45
-            )
+            score_threshold=0.45,
+        )
         search_hits = search_response.points
     except Exception as e:
         logger.error(f"Search failed: {e}")
@@ -407,7 +567,7 @@ def chat_with_memory(item: UserInput, _: None = Depends(verify_api_key)):
         point_ids = ",".join(str(h.id) for h in search_hits)
         query_hash = hashlib.sha256(item.text.encode()).hexdigest()
         log_agent_action(
-            f"user:{LOCAL_USER_ID}", "READ", f"query_hash={query_hash}",
+            f"user:{current_user.id}", "READ", f"query_hash={query_hash}",
             resource_id=point_ids,
         )
         return {"reply": ai_reply, "context_used": simple_sources}
