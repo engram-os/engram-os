@@ -16,6 +16,7 @@ from agents.gmail_tools import (
     mark_email_as_read,
 )
 from core.identity import get_or_create_identity
+from core.user_registry import list_users
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
@@ -53,7 +54,8 @@ def parse_llm_json(raw: str, context: str) -> dict | None:
     return None
 
 @celery_app.task(name="agents.tasks.run_email_agent")
-def run_email_agent():
+def run_email_agent(user_id: str = ""):
+    effective_user_id = user_id or LOCAL_USER_ID
     log_agent_action("EmailAgent", "WAKE_UP", "Checking Inbox for unread messages...")
 
     # 1. Reading
@@ -138,19 +140,22 @@ def test_agent_pulse(data):
     return {"status": "alive"}
 
 @celery_app.task(name="agents.tasks.run_calendar_agent")
-def run_calendar_agent():
+def run_calendar_agent(user_id: str = "", matter_id: str = ""):
+    effective_user_id = user_id or LOCAL_USER_ID
     log_agent_action("CalendarAgent", "WAKE_UP", "Agent started scheduled check.")
 
     try:
+        scroll_must = [
+            models.FieldCondition(key="user_id", match=models.MatchValue(value=effective_user_id))
+        ]
+        if matter_id:
+            scroll_must.append(
+                models.FieldCondition(key="matter_id", match=models.MatchValue(value=matter_id))
+            )
         recs = qdrant.scroll(
             collection_name=COLLECTION_NAME,
             scroll_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="user_id",
-                        match=models.MatchValue(value=LOCAL_USER_ID)
-                    )
-                ],
+                must=scroll_must,
                 must_not=[
                     models.FieldCondition(
                         key="status",
@@ -273,5 +278,44 @@ def run_calendar_agent():
     except Exception as e:
         log_agent_action("CalendarAgent", "ERROR", f"Crash: {e}")
         return {"status": "error"}
-    
+
     return {"status": "done", "action": "none"}
+
+
+# ─── Fan-out helpers — plain functions so they are testable without Celery ────
+
+def _fan_out_calendar():
+    """Dispatch run_calendar_agent for every registered user.
+
+    Falls back to a single no-arg task (uses LOCAL_USER_ID) when the user
+    registry is empty — preserving single-user behaviour unchanged.
+    """
+    users = list_users()
+    if not users:
+        run_calendar_agent.delay()
+        return
+    for u in users:
+        run_calendar_agent.delay(user_id=u["id"])
+
+
+def _fan_out_email():
+    """Dispatch run_email_agent for every registered user.
+
+    Same single-user fallback as _fan_out_calendar.
+    """
+    users = list_users()
+    if not users:
+        run_email_agent.delay()
+        return
+    for u in users:
+        run_email_agent.delay(user_id=u["id"])
+
+
+@celery_app.task(name="agents.tasks.fan_out_calendar")
+def fan_out_calendar():
+    return _fan_out_calendar()
+
+
+@celery_app.task(name="agents.tasks.fan_out_email")
+def fan_out_email():
+    return _fan_out_email()

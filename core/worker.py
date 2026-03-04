@@ -21,11 +21,11 @@ celery_app.conf.imports = ['agents.tasks']
 
 celery_app.conf.beat_schedule = {
     'check-calendar-every-15-mins': {
-        'task': 'agents.tasks.run_calendar_agent',
+        'task': 'agents.tasks.fan_out_calendar',
         'schedule': 900.0,
     },
     'check-email-every-hour': {
-        'task': 'agents.tasks.run_email_agent',
+        'task': 'agents.tasks.fan_out_email',
         'schedule': 3600.0,
     },
 }
