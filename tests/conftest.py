@@ -49,3 +49,6 @@ os.environ.setdefault("ENGRAM_USER_ID", "test-user-uuid-0001")
 
 # ── Audit log secret (required at agents.logger import time) ──────────────────
 os.environ.setdefault("AUDIT_HMAC_SECRET", "test-audit-hmac-secret-0000000000000000")
+
+# ── API key: empty string activates dev-mode passthrough in get_current_user ──
+os.environ.setdefault("ENGRAM_API_KEY", "")
