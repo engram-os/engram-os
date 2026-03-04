@@ -41,6 +41,22 @@ API_URL = "http://ai_os_api:8000"
 _api_key = os.getenv("ENGRAM_API_KEY", "")
 API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
 
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _api_get(path: str) -> dict:
+    try:
+        r = requests.get(f"{API_URL}{path}", headers=API_HEADERS, timeout=(5, 10))
+        return r.json() if r.status_code == 200 else {}
+    except requests.RequestException:
+        return {}
+
+
+def _active_matter_payload() -> dict:
+    """Return a dict with matter_id key if a matter is selected, else empty."""
+    mid = st.session_state.get("active_matter_id")
+    return {"matter_id": mid} if mid else {}
+
 st.set_page_config(
     page_title="Engram OS",
     page_icon=icon_image,
@@ -128,6 +144,115 @@ if _PASSPHRASE:
                 st.error("Incorrect passphrase.")
         st.stop()
 
+# ─── Sidebar — matter selector, management, admin panel ──────────────────────
+
+with st.sidebar:
+    st.markdown("### Engram OS")
+
+    # Fetch current user identity.
+    me = _api_get("/api/me")
+    is_admin = me.get("role") == "admin"
+
+    # Matter selector.
+    matters_resp = _api_get("/api/matters")
+    matters = matters_resp.get("matters", [])
+    matter_options = {"All (no filter)": None}
+    for m in matters:
+        matter_options[m["name"]] = m["id"]
+
+    selected_label = st.selectbox(
+        "Active matter",
+        options=list(matter_options.keys()),
+        key="matter_selector_label",
+    )
+    st.session_state["active_matter_id"] = matter_options[selected_label]
+
+    # Matter management.
+    with st.expander("Manage Matters"):
+        new_matter_name = st.text_input("New matter name", key="new_matter_name")
+        if st.button("Create matter", key="create_matter_btn"):
+            if new_matter_name.strip():
+                try:
+                    r = requests.post(
+                        f"{API_URL}/api/matters",
+                        params={"name": new_matter_name.strip()},
+                        headers=API_HEADERS,
+                        timeout=(5, 10),
+                    )
+                    if r.status_code == 200:
+                        st.success(f"Matter '{new_matter_name}' created.")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed: {r.text}")
+                except requests.RequestException:
+                    st.error("Could not connect to Brain.")
+
+        st.markdown("---")
+        st.markdown("**Close a matter** (deletes all its data):")
+        close_options = {m["name"]: m["id"] for m in matters}
+        if close_options:
+            close_label = st.selectbox("Select matter to close", list(close_options.keys()), key="close_matter_select")
+            confirm_name = st.text_input("Type matter name to confirm", key="close_confirm")
+            if st.button("Close matter", key="close_matter_btn", type="secondary"):
+                if confirm_name == close_label:
+                    try:
+                        r = requests.post(
+                            f"{API_URL}/api/matters/{close_options[close_label]}/close",
+                            headers=API_HEADERS,
+                            timeout=(5, 30),
+                        )
+                        if r.status_code == 200:
+                            data = r.json()
+                            st.success(f"Closed. {data.get('deleted_points', 0)} points removed.")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed: {r.text}")
+                    except requests.RequestException:
+                        st.error("Could not connect to Brain.")
+                else:
+                    st.warning("Name doesn't match. Type the exact matter name to confirm.")
+        else:
+            st.caption("No open matters.")
+
+    # Admin-only: user management.
+    if is_admin:
+        with st.expander("User Management (Admin)"):
+            st.markdown("**Create user**")
+            new_user_name = st.text_input("Display name", key="new_user_name")
+            new_user_role = st.selectbox("Role", ["user", "admin"], key="new_user_role")
+            if st.button("Create user", key="create_user_btn"):
+                if new_user_name.strip():
+                    try:
+                        r = requests.post(
+                            f"{API_URL}/api/users",
+                            params={"display_name": new_user_name.strip(), "role": new_user_role},
+                            headers=API_HEADERS,
+                            timeout=(5, 10),
+                        )
+                        if r.status_code == 200:
+                            data = r.json()
+                            st.success(f"User '{data['display_name']}' created.")
+                            st.code(data["api_key"], language=None)
+                            st.caption("This API key will not be shown again.")
+                        else:
+                            st.error(f"Failed: {r.text}")
+                    except requests.RequestException:
+                        st.error("Could not connect to Brain.")
+
+            st.markdown("---")
+            st.markdown("**All users**")
+            users_resp = _api_get("/api/users")
+            all_users = users_resp.get("users", [])
+            if all_users:
+                st.dataframe(
+                    [{"id": u["id"], "name": u["display_name"], "role": u["role"], "created": u.get("created_at", "")} for u in all_users],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.caption("No users in registry.")
+
+
 if JS_AVAILABLE:
     tz_name = st_javascript("Intl.DateTimeFormat().resolvedOptions().timeZone")
     if isinstance(tz_name, str) and tz_name:
@@ -169,7 +294,8 @@ with center_col:
 
     if save_btn and user_input:
         try:
-            requests.post(f"{API_URL}/ingest", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 10))
+            payload = {"text": user_input, **_active_matter_payload()}
+            requests.post(f"{API_URL}/ingest", json=payload, headers=API_HEADERS, timeout=(5, 10))
             st.toast("Memory saved successfully!", icon="✅")
         except requests.RequestException:
             st.error("Could not connect to Brain.")
@@ -177,7 +303,8 @@ with center_col:
     if chat_btn and user_input:
         with st.spinner("Processing..."):
             try:
-                res = requests.post(f"{API_URL}/chat", json={"text": user_input}, headers=API_HEADERS, timeout=(5, 60))
+                payload = {"text": user_input, **_active_matter_payload()}
+                res = requests.post(f"{API_URL}/chat", json=payload, headers=API_HEADERS, timeout=(5, 60))
                 if res.status_code == 200:
                     chat = ChatResponse.model_validate(res.json())
                     safe_reply = html_escape_lib.escape(chat.reply)

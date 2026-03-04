@@ -5,8 +5,6 @@ from google.auth.transport.requests import Request
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PATH = os.getenv("GOOGLE_TOKEN_PATH", "credentials/token.json")
-
 SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -14,16 +12,35 @@ SCOPES = [
 ]
 
 
-def get_google_credentials():
+def _resolve_token_path(user_id: str) -> str:
+    """Return the token.json path to use for this user.
+
+    Priority:
+      1. GOOGLE_TOKEN_PATH env override (used in Docker / CI).
+      2. Per-user path credentials/{user_id}/token.json (if file exists).
+      3. Shared fallback credentials/token.json.
+    """
+    env_override = os.getenv("GOOGLE_TOKEN_PATH", "")
+    if env_override:
+        return env_override
+    if user_id:
+        per_user = f"credentials/{user_id}/token.json"
+        if os.path.exists(per_user):
+            return per_user
+    return "credentials/token.json"
+
+
+def get_google_credentials(user_id: str = ""):
     """Load and refresh Google OAuth credentials. Returns None if unavailable."""
+    token_path = _resolve_token_path(user_id)
     creds = None
-    if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            with open(TOKEN_PATH, "w") as f:
+            with open(token_path, "w") as f:
                 f.write(creds.to_json())
             logger.info("Google OAuth token refreshed and persisted.")
         else:
