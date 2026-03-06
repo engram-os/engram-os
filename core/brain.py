@@ -25,7 +25,8 @@ from agents.git_automator import router as git_router
 
 from core.identity import get_or_create_identity
 from core.memory_client import EncryptedMemoryClient, load_encryption_key
-from core.classification_engine import classify
+from core.classification_engine import classify, Classification
+from core.sanitizer import sanitize
 from core.user_registry import (
     bootstrap_admin, get_user_by_key, create_user, list_users, User,
 )
@@ -532,19 +533,27 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
     lines = []
     for hit in search_hits:
         mem_text = hit.payload.get('memory') or "Unknown info"
-        lines.append(f"- {mem_text}")
+        # Sanitize each memory before it enters the LLM prompt.
+        # classification is stored as plaintext in Qdrant (ARCH-1).
+        mem_classification = Classification[hit.payload.get('classification', 'PUBLIC')]
+        sanitized_mem = sanitize(mem_text, mem_classification)
+        lines.append(f"- {sanitized_mem.text}")
         simple_sources.append({
-            "memory": mem_text,
+            "memory": mem_text,  # return original to caller, not sanitized
             "score": round(hit.score, 3)
         })
     context_str = "\n".join(lines)[:MAX_CONTEXT_CHARS]
 
+    # Sanitize the user's query before sending to Ollama.
+    query_classification = classify(item.text)
+    sanitized_query = sanitize(item.text, query_classification)
+
     if context_str.strip():
-        system_prompt = """You are a helpful Personal OS with access to the user's stored memories. 
+        system_prompt = """You are a helpful Personal OS with access to the user's stored memories.
         Answer the user's question using ONLY the memories provided below.
         If the memories don't contain enough information to answer, say "I don't have enough context stored about that yet."
         Do not invent, infer, or add information beyond what is in the memories.
-   
+
     Stored memories:
     """ + context_str
     else:
@@ -552,7 +561,7 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
         You have no stored memories relevant to this question.
         Respond with: "I don't have anything stored about that yet."
         Do not make up or infer any information."""
-    
+
     try:
         ollama_res = requests.post(
             f"{OLLAMA_URL}/api/chat",
@@ -560,7 +569,7 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
                 "model": "llama3.1:latest",
                 "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": item.text}
+                    {"role": "user", "content": sanitized_query.text}
                 ],
                 "stream": False
             },
