@@ -62,6 +62,7 @@ def test_round_trip_write_then_search_recovers_payload():
             point_id="pt-001",
             vector=[0.1] * 768,
             payload=dict(SAMPLE_PAYLOAD),
+            classification="PHI",
         )
 
     # Capture what was actually stored in Qdrant
@@ -105,6 +106,7 @@ def test_plaintext_filter_fields_not_encrypted():
             point_id="pt-002",
             vector=[0.1] * 768,
             payload=dict(SAMPLE_PAYLOAD),
+            classification="PUBLIC",
         )
 
     stored = mock_qdrant.upsert.call_args.kwargs["points"][0].payload
@@ -127,6 +129,7 @@ def test_sensitive_fields_absent_from_raw_payload():
             point_id="pt-003",
             vector=[0.1] * 768,
             payload=dict(SAMPLE_PAYLOAD),
+            classification="PII",
         )
 
     stored = mock_qdrant.upsert.call_args.kwargs["points"][0].payload

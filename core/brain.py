@@ -25,6 +25,7 @@ from agents.git_automator import router as git_router
 
 from core.identity import get_or_create_identity
 from core.memory_client import EncryptedMemoryClient, load_encryption_key
+from core.classification_engine import classify
 from core.user_registry import (
     bootstrap_admin, get_user_by_key, create_user, list_users, User,
 )
@@ -346,6 +347,7 @@ def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
     content_hash = hashlib.sha256(f"{current_user.id}:{item.text}".encode()).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
+    data_classification = classify(item.text)
     client.write(
         collection_name=COLLECTION_NAME,
         point_id=point_id,
@@ -356,7 +358,8 @@ def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
             "matter_id": resolved_matter or "",
             "type": "explicit_memory",
             "created_at": str(datetime.now()),
-        }
+        },
+        classification=data_classification.name,
     )
     log_agent_action(f"user:{current_user.id}", "WRITE", "explicit_memory", resource_id=point_id)
     return {"status": "memory_saved", "id": point_id}
@@ -398,6 +401,7 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
+    data_classification = classify(item.text)
     client.write(
         collection_name=COLLECTION_NAME,
         point_id=point_id,
@@ -409,7 +413,8 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
             "matter_id": resolved_matter or "",
             "type": content_type,
             "created_at": str(datetime.now()),
-        }
+        },
+        classification=data_classification.name,
     )
     log_agent_action(f"user:{current_user.id}", "WRITE", f"type={content_type}", resource_id=point_id)
     return {"status": "raw_data_saved", "id": point_id}

@@ -115,9 +115,15 @@ class EncryptedMemoryClient:
         point_id: str,
         vector: list[float],
         payload: dict,
+        classification: str,
     ) -> None:
-        """Encrypt payload and upsert a single point."""
-        stored_payload = self._encrypt_payload(payload)
+        """Encrypt payload and upsert a single point.
+
+        classification is stored as a plaintext field (in PLAINTEXT_KEYS) so
+        Qdrant can filter on it without decryption. It cannot be omitted —
+        every write must declare the sensitivity level of its content.
+        """
+        stored_payload = self._encrypt_payload({**payload, "classification": classification})
         self._qdrant.upsert(
             collection_name=collection_name,
             points=[models.PointStruct(

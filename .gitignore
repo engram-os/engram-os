@@ -59,3 +59,7 @@ data/dbs/
 notes/
 
 .env
+
+venv/
+
+data/
