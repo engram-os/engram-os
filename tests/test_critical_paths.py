@@ -106,8 +106,8 @@ def test_ingest_deduplication(brain_client):
     has_match.points = [mock_hit]
 
     with patch("core.brain.requests.post", return_value=embed_response), \
-         patch("core.brain.client.query_points", side_effect=[no_match, has_match]), \
-         patch("core.brain.client.upsert"):
+         patch("core.brain.client._qdrant.query_points", side_effect=[no_match, has_match]), \
+         patch("core.brain.client._qdrant.upsert"):
 
         r1 = brain_client.post("/ingest", json={"text": "unique memory about the project"})
         r2 = brain_client.post("/ingest", json={"text": "unique memory about the project"})

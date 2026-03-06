@@ -24,6 +24,7 @@ from agents.spectre import router as spectre_router
 from agents.git_automator import router as git_router
 
 from core.identity import get_or_create_identity
+from core.memory_client import EncryptedMemoryClient, load_encryption_key
 from core.user_registry import (
     bootstrap_admin, get_user_by_key, create_user, list_users, User,
 )
@@ -99,7 +100,10 @@ MAX_CONTEXT_CHARS = 4000
 ollama_client = OllamaClient(host=OLLAMA_URL)
 integration_manager = IntegrationManager()
 
-client = QdrantClient(host=QDRANT_HOST, port=6333)
+client = EncryptedMemoryClient(
+    QdrantClient(host=QDRANT_HOST, port=6333),
+    load_encryption_key(),
+)
 
 _VALID_CONTENT_TYPES = Literal["raw_ingestion", "browsing_event", "file_ingest", "explicit_memory"]
 
@@ -316,7 +320,6 @@ async def trigger_email_check(current_user: User = Depends(get_current_user)):
 
 @app.post("/add-memory")
 def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
-    # TODO: DSE-1 — replace raw client.upsert() with EncryptedMemoryClient.write()
     resolved_matter = _resolve_matter(current_user, item.matter_id)
 
     vector = get_embedding(item.text)
@@ -330,9 +333,9 @@ def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
     if resolved_matter is not None:
         must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
 
-    similar = client.query_points(
+    similar = client.search(
         collection_name=COLLECTION_NAME,
-        query=vector,
+        query_vector=vector,
         query_filter=models.Filter(must=must),
         limit=1,
         score_threshold=0.97,
@@ -343,19 +346,17 @@ def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
     content_hash = hashlib.sha256(f"{current_user.id}:{item.text}".encode()).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
-    client.upsert(
+    client.write(
         collection_name=COLLECTION_NAME,
-        points=[models.PointStruct(
-            id=point_id,
-            vector=vector,
-            payload={
-                "memory": item.text,
-                "user_id": current_user.id,
-                "matter_id": resolved_matter or "",
-                "type": "explicit_memory",
-                "created_at": str(datetime.now()),
-            }
-        )]
+        point_id=point_id,
+        vector=vector,
+        payload={
+            "memory": item.text,
+            "user_id": current_user.id,
+            "matter_id": resolved_matter or "",
+            "type": "explicit_memory",
+            "created_at": str(datetime.now()),
+        }
     )
     log_agent_action(f"user:{current_user.id}", "WRITE", "explicit_memory", resource_id=point_id)
     return {"status": "memory_saved", "id": point_id}
@@ -378,9 +379,9 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
     if resolved_matter is not None:
         must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
 
-    similar = client.query_points(
+    similar = client.search(
         collection_name=COLLECTION_NAME,
-        query=vector,
+        query_vector=vector,
         query_filter=models.Filter(must=must),
         limit=1,
         score_threshold=0.97,
@@ -397,20 +398,18 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
     ).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
-    client.upsert(
+    client.write(
         collection_name=COLLECTION_NAME,
-        points=[models.PointStruct(
-            id=point_id,
-            vector=vector,
-            payload={
-                "memory": item.text,
-                "embed_text": text_to_embed,
-                "user_id": current_user.id,
-                "matter_id": resolved_matter or "",
-                "type": content_type,
-                "created_at": str(datetime.now()),
-            }
-        )]
+        point_id=point_id,
+        vector=vector,
+        payload={
+            "memory": item.text,
+            "embed_text": text_to_embed,
+            "user_id": current_user.id,
+            "matter_id": resolved_matter or "",
+            "type": content_type,
+            "created_at": str(datetime.now()),
+        }
     )
     log_agent_action(f"user:{current_user.id}", "WRITE", f"type={content_type}", resource_id=point_id)
     return {"status": "raw_data_saved", "id": point_id}
@@ -421,7 +420,6 @@ def search_memory(
     matter_id: str | None = Query(default=None, max_length=100),
     current_user: User = Depends(get_current_user),
 ):
-    # TODO: DSE-1 — replace raw client.query_points() with EncryptedMemoryClient.search()
     resolved_matter = _resolve_matter(current_user, matter_id)
 
     query_vector = get_embedding(query)
@@ -432,9 +430,9 @@ def search_memory(
     if resolved_matter is not None:
         must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
 
-    hits = client.query_points(
+    hits = client.search(
         collection_name=COLLECTION_NAME,
-        query=query_vector,
+        query_vector=query_vector,
         query_filter=models.Filter(must=must),
         limit=10,
         score_threshold=0.45,
@@ -464,12 +462,12 @@ def unified_search(
             must = [models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id))]
             if resolved_matter is not None:
                 must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
-            hits = client.query_points(
+            hits = client.search(
                 collection_name=COLLECTION_NAME,
-                query=query_vector,
+                query_vector=query_vector,
                 query_filter=models.Filter(must=must),
                 limit=n_results,
-                score_threshold=0.45
+                score_threshold=0.45,
             )
             for hit in hits.points:
                 results.append({
@@ -511,9 +509,9 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
         must = [models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id))]
         if resolved_matter is not None:
             must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
-        search_response = client.query_points(
+        search_response = client.search(
             collection_name=COLLECTION_NAME,
-            query=query_vector,
+            query_vector=query_vector,
             query_filter=models.Filter(must=must),
             limit=5,
             score_threshold=0.45,

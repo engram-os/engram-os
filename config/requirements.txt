@@ -20,6 +20,8 @@ streamlit-javascript
 python-docx
 python-dateutil
 
+cryptography
+
 # dev / testing
 pytest
 pytest-mock

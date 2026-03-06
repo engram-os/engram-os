@@ -6,6 +6,7 @@ import requests
 from core.worker import celery_app
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from core.memory_client import EncryptedMemoryClient, load_encryption_key
 from agents.tools import add_calendar_event
 from agents.logger import log_agent_action
 from agents.gmail_tools import (
@@ -23,7 +24,10 @@ QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 COLLECTION_NAME = "second_brain"
 LOCAL_USER_ID = get_or_create_identity()["user_id"]
 
-qdrant = QdrantClient(host=QDRANT_HOST, port=6333)
+qdrant = EncryptedMemoryClient(
+    QdrantClient(host=QDRANT_HOST, port=6333),
+    load_encryption_key(),
+)
 logger = logging.getLogger(__name__)
 
 
