@@ -54,6 +54,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
       - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
+      - ENGRAM_ENCRYPTION_KEY=${ENGRAM_ENCRYPTION_KEY}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -148,6 +149,7 @@ services:
       - QDRANT_PORT=6333
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
       - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
+      - ENGRAM_ENCRYPTION_KEY=${ENGRAM_ENCRYPTION_KEY}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
