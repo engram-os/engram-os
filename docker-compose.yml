@@ -161,7 +161,7 @@ services:
       - ./core:/app/core
       - ./agents:/app/agents
       - ./data:/app/data
-      - ./credentials:/app/credentials:ro
+      - ./credentials:/app/credentials
     networks:
       - ai_os_net
     healthcheck:

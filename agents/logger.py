@@ -137,6 +137,7 @@ def log_agent_action(
     """
     try:
         with _write_lock:
+            init_db()
             conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
 

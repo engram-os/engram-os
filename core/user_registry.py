@@ -112,6 +112,7 @@ def create_user(display_name: str, role: str = "user") -> tuple[str, str]:
 
 def list_users() -> list[dict]:
     """Return all users. Never includes api_key_hash."""
+    init_user_db()
     with _get_conn() as conn:
         rows = conn.execute(
             "SELECT id, role, display_name, created_at FROM users"
