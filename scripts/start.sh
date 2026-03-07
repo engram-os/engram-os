@@ -44,7 +44,15 @@ preflight_checks() {
     fi
   fi
 
-  # 5. Google OAuth token — warning only (graceful degradation without it)
+  # 5. Python venv present?
+  if [ ! -f venv/bin/python ]; then
+    printf "${RED}✗ venv not found. Run: python3 -m venv venv && pip install -r config/requirements.txt${NC}\n"
+    errors=$((errors + 1))
+  else
+    printf "${GREEN}✓ venv found${NC}\n"
+  fi
+
+  # 6. Google OAuth token — warning only (graceful degradation without it)
   if [ ! -f credentials/token.json ]; then
     printf "${YELLOW}⚠ credentials/token.json missing — Google Calendar/Gmail features disabled.${NC}\n"
     printf "   Fix: python3 scripts/generate_token.py\n"
@@ -52,7 +60,7 @@ preflight_checks() {
     printf "${GREEN}✓ Google OAuth token present${NC}\n"
   fi
 
-  # 6. Available memory — warning only, Linux only (macOS Docker runs in a VM)
+  # 7. Available memory — warning only, Linux only (macOS Docker runs in a VM)
   if [[ "$(uname)" != "Darwin" ]]; then
     free_mb=$(free -m | awk '/Mem:/{print $7}')
     if [ "$free_mb" -lt 2048 ]; then
@@ -100,9 +108,9 @@ json.dump(data, open('$IDENTITY_FILE', 'w'), indent=2)"
     local pid
 
     if [ "$name" == "ui" ]; then
-        nohup python3 -m streamlit run "$script" > data/logs/"$name".log 2>&1 &
+        nohup venv/bin/python -m streamlit run "$script" > data/logs/"$name".log 2>&1 &
     else
-        nohup python3 "$script" > data/logs/"$name".log 2>&1 &
+        PYTHONPATH="$(pwd)/core" nohup venv/bin/python "$script" > data/logs/"$name".log 2>&1 &
     fi
 
     pid=$!

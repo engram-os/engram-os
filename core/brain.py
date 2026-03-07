@@ -12,6 +12,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from fastapi.middleware.cors import CORSMiddleware
 import hashlib
+import json
 import sys
 
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
@@ -115,6 +116,7 @@ class UserInput(BaseModel):
     type: _VALID_CONTENT_TYPES = Field(default="raw_ingestion")
     matter_id: str | None = Field(default=None, max_length=100)
     document_keys: dict | None = Field(default=None)
+    created_at: str | None = Field(default=None)
 
 
 def _resolve_matter(user: User, matter_id: str | None) -> str | None:
@@ -359,7 +361,7 @@ def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
             "user_id": current_user.id,
             "matter_id": resolved_matter or "",
             "type": "explicit_memory",
-            "created_at": str(datetime.now()),
+            "created_at": item.created_at or str(datetime.now()),
         },
         classification=data_classification.name,
     )
@@ -420,13 +422,87 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
             "user_id": current_user.id,
             "matter_id": resolved_matter or "",
             "type": content_type,
-            "created_at": str(datetime.now()),
+            "created_at": item.created_at or str(datetime.now()),
             **doc_keys,
         },
         classification=data_classification.name,
     )
     log_agent_action(f"user:{current_user.id}", "WRITE", f"type={content_type}", resource_id=point_id)
     return {"status": "raw_data_saved", "id": point_id}
+
+
+# ─── Memory deletion endpoints ────────────────────────────────────────────────
+
+@app.delete("/api/memory/{point_id}")
+def delete_memory_by_id(
+    point_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a single memory point by ID. Caller must own the point."""
+    try:
+        uuid.UUID(point_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid point_id: must be a valid UUID.")
+
+    try:
+        points = client._qdrant.retrieve(
+            collection_name=COLLECTION_NAME,
+            ids=[point_id],
+            with_payload=True,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Retrieval failed: {e}")
+
+    if not points:
+        raise HTTPException(status_code=404, detail="Memory not found.")
+
+    payload = points[0].payload or {}
+    if payload.get("user_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
+    client.delete(
+        collection_name=COLLECTION_NAME,
+        points_selector=models.PointIdsList(points=[point_id]),
+    )
+
+    payload_hash = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    log_agent_action(
+        f"user:{current_user.id}", "DELETE", f"payload_hash:{payload_hash}",
+        resource_id=point_id,
+        matter_id=payload.get("matter_id", ""),
+    )
+    return {"status": "deleted", "id": point_id}
+
+
+@app.delete("/api/memories")
+def delete_memories_batch(
+    matter_id: str = Query(..., min_length=1, max_length=100),
+    type: Optional[_VALID_CONTENT_TYPES] = Query(default=None),
+    current_user: User = Depends(get_current_user),
+):
+    """Batch-delete all memories for a matter, optionally filtered by type."""
+    resolved_matter = _resolve_matter(current_user, matter_id)
+
+    must = [
+        models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user.id)),
+        models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)),
+    ]
+    if type is not None:
+        must.append(models.FieldCondition(key="type", match=models.MatchValue(value=type)))
+
+    client.delete(
+        collection_name=COLLECTION_NAME,
+        points_selector=models.FilterSelector(filter=models.Filter(must=must)),
+    )
+
+    log_agent_action(
+        f"user:{current_user.id}", "DELETE_BATCH",
+        f"matter_id={resolved_matter} type={type or 'all'}",
+        resource_id=f"matter:{resolved_matter}",
+        matter_id=resolved_matter or "",
+    )
+    return {"status": "deleted", "matter_id": resolved_matter, "type": type}
+
 
 @app.get("/search")
 def search_memory(

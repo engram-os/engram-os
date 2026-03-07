@@ -63,3 +63,5 @@ notes/
 venv/
 
 data/
+
+seed_demo.py

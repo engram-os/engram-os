@@ -27,9 +27,16 @@ def add_calendar_event(title: str, time: str, description: str = ""):
     if not service:
         return {"status": "error", "message": "Authentication failed"}
 
-    # Parse the LLM-extracted time string
+    # Parse the LLM-extracted time string.
+    # Sentinel default: 22:47 is an unusual time unlikely to appear in natural language.
+    # If dateutil fills this default, no time was specified in the string.
+    # This correctly handles "midnight" (00:00), which the old `hour != 0` check misclassified.
+    _SENTINEL_HOUR, _SENTINEL_MIN = 22, 47
+    sentinel = datetime.datetime.now().replace(
+        hour=_SENTINEL_HOUR, minute=_SENTINEL_MIN, second=0, microsecond=0
+    )
     try:
-        parsed_dt = dateutil_parser.parse(time, fuzzy=True, default=datetime.datetime.now())
+        parsed_dt = dateutil_parser.parse(time, fuzzy=True, default=sentinel)
         # If the parsed time is in the past, assume next occurrence (+7 days)
         if parsed_dt < datetime.datetime.now():
             parsed_dt += datetime.timedelta(days=7)
@@ -37,8 +44,8 @@ def add_calendar_event(title: str, time: str, description: str = ""):
         logger.warning(f"Could not parse time string {time!r} — defaulting to tomorrow.")
         parsed_dt = datetime.datetime.now() + datetime.timedelta(days=1)
 
-    # Use dateTime (timed) if a specific time was given, otherwise all-day date
-    has_time_component = parsed_dt.hour != 0 or parsed_dt.minute != 0
+    # Use dateTime (timed) if a specific time was given, otherwise all-day date.
+    has_time_component = not (parsed_dt.hour == _SENTINEL_HOUR and parsed_dt.minute == _SENTINEL_MIN)
     if has_time_component:
         start = {"dateTime": parsed_dt.isoformat(), "timeZone": "UTC"}
         end = {"dateTime": (parsed_dt + datetime.timedelta(hours=1)).isoformat(), "timeZone": "UTC"}

@@ -439,6 +439,73 @@ with st.sidebar:
                 else:
                     st.warning("Name doesn't match.")
 
+    # Memory deletion
+    with st.expander("Delete memories"):
+        # ── Single delete ──────────────────────────────────────────────────
+        st.caption("SINGLE MEMORY")
+        del_id = st.text_input(
+            "Point ID", key="del_point_id",
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        )
+        del_ok = st.checkbox("Confirm — this cannot be undone", key="del_confirm_single")
+        if st.button("Delete", key="del_single_btn"):
+            if not del_id.strip():
+                st.warning("Enter a point ID.")
+            elif not del_ok:
+                st.warning("Check the confirmation box.")
+            else:
+                try:
+                    r = requests.delete(
+                        f"{API_URL}/api/memory/{del_id.strip()}",
+                        headers=API_HEADERS, timeout=(5, 10),
+                    )
+                    if r.status_code == 200:
+                        st.toast("Memory deleted.")
+                        st.rerun()
+                    elif r.status_code == 404:
+                        st.error("Memory not found.")
+                    elif r.status_code == 403:
+                        st.error("Access denied.")
+                    else:
+                        st.error(r.text)
+                except Exception:
+                    st.error("Cannot reach API.")
+
+        # ── Batch delete ───────────────────────────────────────────────────
+        if matters:
+            st.markdown("---")
+            st.caption("BATCH DELETE BY MATTER")
+            dm = {m["name"]: m["id"] for m in matters}
+            dl = st.selectbox("Matter", list(dm.keys()), key="del_matter_sel")
+            dt = st.selectbox(
+                "Type",
+                ["all", "file_ingest", "raw_ingestion", "browsing_event", "explicit_memory"],
+                key="del_type_sel",
+            )
+            dc = st.text_input(
+                "Type matter name to confirm", key="del_batch_confirm",
+                placeholder=dl,
+            )
+            if st.button("Delete all", key="del_batch_btn"):
+                if dc != dl:
+                    st.warning("Name doesn't match.")
+                else:
+                    try:
+                        params = {"matter_id": dm[dl]}
+                        if dt != "all":
+                            params["type"] = dt
+                        r = requests.delete(
+                            f"{API_URL}/api/memories",
+                            params=params, headers=API_HEADERS, timeout=(5, 30),
+                        )
+                        if r.status_code == 200:
+                            st.toast("Batch deleted.")
+                            st.rerun()
+                        else:
+                            st.error(r.text)
+                    except Exception:
+                        st.error("Cannot reach API.")
+
     # Admin users
     me = _get("/api/me")
     if me.get("role") == "admin":
@@ -625,10 +692,12 @@ with col_feed:
         else:
             def _badge(action: str) -> tuple[str, str]:
                 a = str(action)
-                if a == "TOOL_USE":   return t["b_tool"]
-                if a == "ERROR":      return t["b_err"]
-                if a == "WAKE_UP":    return t["b_wake"]
-                if a in ("SKIP", "WARNING"): return t["b_skip"]
+                if a == "TOOL_USE":                    return t["b_tool"]
+                if a == "ERROR":                       return t["b_err"]
+                if a == "WAKE_UP":                     return t["b_wake"]
+                if a in ("SKIP", "WARNING"):           return t["b_skip"]
+                if a in ("DELETE", "DELETE_BATCH"):    return t["b_err"]
+                if a in ("WRITE", "READ"):             return t["b_tool"]
                 return t["b_def"]
 
             for ts, agent, action, details in logs:
