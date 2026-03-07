@@ -5,6 +5,7 @@ import time
 import shutil
 import requests
 import logging
+import re
 import pypdf
 import docx
 from identity import get_or_create_identity
@@ -25,6 +26,27 @@ LOCAL_USER_ID = IDENTITY["user_id"]
 
 os.makedirs(INBOX_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
+
+PATTERNS = {
+    "insurer":      r"(?i)(?:claim\s+denial\s+notice|prior\s+authorization[\w\s]*)\s*[—\-]+\s*(.+)",
+    "claim_number": r"(?i)claim\s*(?:number|#|no\.?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]+)",
+    "auth_number":  r"(?i)authorization\s+number\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]+)",
+    "reference":    r"(?i)reference(?:\s*(?:number|no\.?))?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]+)",
+    "patient":      r"(?i)patient\s*[:\-]\s*([A-Z][A-Z\-]+)",
+    "dos":          r"(?i)date\s+of\s+service\s*[:\-]\s*(\d{4}-\d{2}-\d{2})",
+    "cpt_code":     r"(?i)CPT\s*[:\-]?\s*(\d{5})",
+    "icd10":        r"\b([A-Z]\d{2}\.\d{1,4})\b",
+    "denial_code":  r"(?i)\b(CO-\d+|PR-\d+|OA-\d+|PI-\d+)\b",
+}
+
+def extract_document_keys(text: str) -> dict:
+    """Extract structured identifiers for composite identity and discriminative embedding."""
+    keys = {}
+    for field, pattern in PATTERNS.items():
+        match = re.search(pattern, text)
+        if match:
+            keys[field] = match.group(1).strip()
+    return keys
 
 def extract_text(filepath):
     """Smart text extractor for PDF and Text files."""
@@ -87,10 +109,27 @@ def scan_inbox():
             continue
 
         try:
-            res = requests.post(API_URL, json={"text": content, "user_id": LOCAL_USER_ID}, timeout=(5, 10))
-            
+            keys = extract_document_keys(content)
+            embed_text = " ".join(f"{k}:{v}" for k, v in keys.items()) if keys else None
+            if keys:
+                logger.info(f"   Keys extracted: {keys}")
+            else:
+                logger.warning(f"   No structured keys found — falling back to content hash")
+
+            res = requests.post(API_URL, json={
+                "text": content,
+                "user_id": LOCAL_USER_ID,
+                "type": "file_ingest",
+                "embed_text": embed_text,
+                "document_keys": keys,
+            }, timeout=(5, 10))
+
             if res.status_code == 200:
-                logger.info(f"Ingested Memory")
+                body = res.json()
+                if body.get("status") == "duplicate_skipped":
+                    logger.warning(f"   Duplicate skipped (already stored): {filename}")
+                else:
+                    logger.info(f"   Ingested as new memory (id={body.get('id', '?')})")
 
                 destination = os.path.join(PROCESSED_DIR, filename)
                 if os.path.exists(destination):
