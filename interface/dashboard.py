@@ -21,7 +21,6 @@ except ImportError:
     def _local(dt, tz): return pytz.utc.localize(dt).astimezone(pytz.timezone(tz))
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from agents.logger import get_recent_logs
 from core.schemas import ChatResponse
 
 # ─── Constants ────────────────────────────────────────────────────────────────
@@ -681,7 +680,11 @@ with col_feed:
 
     feed_box = st.container(height=470)
     with feed_box:
-        logs = get_recent_logs(40)
+        _log_data = _get("/api/audit/logs?limit=40", timeout=10)
+        logs = [
+            (r["timestamp"], r["actor"], r["action"], r["details"])
+            for r in _log_data.get("logs", [])
+        ]
         if not logs:
             st.markdown(
                 f'<div style="padding:3rem 0; text-align:center; color:{t["muted"]}; font-size:0.82rem; line-height:1.9;">'

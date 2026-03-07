@@ -47,20 +47,23 @@ services:
       - ./data:/app/data
       - ./engram_db:/app/engram_db
       - ./credentials:/app/credentials:ro
+      - audit_socket:/tmp/audit        # IPC socket to audit_writer
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - CELERY_BROKER_URL=redis://redis:6379/0
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
-      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
       - ENGRAM_ENCRYPTION_KEY=${ENGRAM_ENCRYPTION_KEY}
+      - AUDIT_SOCKET_PATH=/tmp/audit/audit.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       qdrant:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      audit_writer:
         condition: service_healthy
     networks:
       - ai_os_net
@@ -108,7 +111,40 @@ services:
       timeout: 5s
       retries: 5
 
-  # 4. The Message Bus
+  # 4. The Audit Writer (sole owner of tamper-evident audit log)
+  audit_writer:
+    build:
+      context: .
+      dockerfile: config/Dockerfile
+    container_name: engram_audit
+    restart: unless-stopped
+    oom_score_adj: 0
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    command: python audit_writer/server.py
+    volumes:
+      - audit_data:/audit              # sole R/W mount — no other service gets this
+      - audit_socket:/tmp/audit        # shared socket directory for IPC
+      - ./audit_writer:/app/audit_writer:ro
+      - ./agents:/app/agents:ro
+      - ./core:/app/core:ro
+    environment:
+      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
+      - AUDIT_DB_PATH=/audit/audit.db
+      # AUDIT_SOCKET_PATH is intentionally NOT set here — this process writes directly.
+    networks:
+      - ai_os_net
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /tmp/audit/audit.sock"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  # 5. The Message Bus
   redis:
     image: redis:7-alpine
     container_name: engram_redis
@@ -150,8 +186,8 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
-      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
       - ENGRAM_ENCRYPTION_KEY=${ENGRAM_ENCRYPTION_KEY}
+      - AUDIT_SOCKET_PATH=/tmp/audit/audit.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -159,11 +195,14 @@ services:
         condition: service_healthy
       os_layer:
         condition: service_healthy
+      audit_writer:
+        condition: service_healthy
     volumes:
       - ./core:/app/core
       - ./agents:/app/agents
       - ./data:/app/data
       - ./credentials:/app/credentials
+      - audit_socket:/tmp/audit        # IPC socket to audit_writer
     networks:
       - ai_os_net
     healthcheck:
@@ -189,19 +228,24 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
-      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
+      - AUDIT_SOCKET_PATH=/tmp/audit/audit.sock
     depends_on:
       redis:
+        condition: service_healthy
+      audit_writer:
         condition: service_healthy
     volumes:
       - ./core:/app/core
       - ./data:/app/data
+      - audit_socket:/tmp/audit        # IPC socket to audit_writer
     networks:
       - ai_os_net
 
 volumes:
   qdrant_data:
   redis_data:
+  audit_data:    # tamper-evident audit DB — only audit_writer mounts this
+  audit_socket:  # Unix socket directory shared for IPC between audit_writer and clients
 
 networks:
   ai_os_net:

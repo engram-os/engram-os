@@ -1,32 +1,44 @@
+import json
+import os
+import socket
 import sqlite3
 import datetime
 import hashlib
 import hmac
-import os
 import threading
 
-# ── Startup guard ──────────────────────────────────────────────────────────────
-# Fail hard at import time if the secret is missing — a missing secret means
-# every hash computed would be invalid, silently producing an unverifiable log.
+# ── Runtime configuration ──────────────────────────────────────────────────────
+# AUDIT_SOCKET_PATH: when set, this process is a *client* — all writes and reads
+# are delegated to the audit_writer service via Unix socket. Only audit_writer
+# itself should have AUDIT_SOCKET_PATH unset (so it writes directly to the DB).
+AUDIT_SOCKET_PATH: str = os.getenv("AUDIT_SOCKET_PATH", "")
+
+# AUDIT_HMAC_SECRET is only required for direct-write mode (audit_writer).
+# In socket-client mode (os_layer, workers) the secret lives exclusively in
+# audit_writer — no other container ever computes or sees it.
 _raw_secret = os.getenv("AUDIT_HMAC_SECRET", "")
-if not _raw_secret:
+if not _raw_secret and not AUDIT_SOCKET_PATH:
     raise RuntimeError(
         "AUDIT_HMAC_SECRET env var is required but not set. "
         "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
     )
-_AUDIT_SECRET: bytes = _raw_secret.encode()
+_AUDIT_SECRET: bytes = _raw_secret.encode() if _raw_secret else b""
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 DBS_DIR = os.path.join(root_dir, "data", "dbs")
 os.makedirs(DBS_DIR, exist_ok=True)
-DB_PATH = os.path.join(DBS_DIR, "agent_activity.db")
+# AUDIT_DB_PATH overrides the default path — set in audit_writer to point at
+# the dedicated Docker volume (/audit/audit.db) that no other service mounts.
+DB_PATH: str = os.getenv("AUDIT_DB_PATH") or os.path.join(DBS_DIR, "agent_activity.db")
 
 
 def _can_write_db() -> bool:
-    """Return True if DBS_DIR is writable (false in dashboard's read-only mount)."""
+    """Return True if the DB parent directory is writable."""
+    target_dir = os.path.dirname(DB_PATH)
+    os.makedirs(target_dir, exist_ok=True)
     try:
-        probe = os.path.join(DBS_DIR, ".write_probe")
+        probe = os.path.join(target_dir, ".write_probe")
         with open(probe, "w"):
             pass
         os.unlink(probe)
@@ -109,10 +121,33 @@ def init_db() -> None:
     conn.close()
 
 
-# Only initialise (and write to) the DB in containers that have write access.
-# The dashboard mounts data/dbs/ read-only and must not call init_db().
-if _can_write_db():
+# Only initialise the DB in processes that write directly (not socket-mode clients).
+# Socket-mode clients (os_layer, workers) never touch the DB file at all.
+if not AUDIT_SOCKET_PATH and _can_write_db():
     init_db()
+
+
+def _socket_call(msg: dict) -> dict:
+    """Send a request to audit_writer via Unix socket and return the JSON response.
+
+    Connection-per-request: open → send all bytes → SHUT_WR (signals EOF to
+    server) → read all reply bytes → close. Simple and deadlock-free.
+    """
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.connect(AUDIT_SOCKET_PATH)
+            s.sendall(json.dumps(msg).encode())
+            s.shutdown(socket.SHUT_WR)
+            data = b""
+            while True:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+            return json.loads(data)
+    except Exception as e:
+        print(f"[logger] Audit socket error: {e}")
+        return {}
 
 
 def _get_last_entry_hash(conn: sqlite3.Connection) -> str:
@@ -135,6 +170,17 @@ def log_agent_action(
     Signature is backward-compatible — all existing callers pass only
     (agent_name, action_type, details) and continue to work unchanged.
     """
+    if AUDIT_SOCKET_PATH:
+        _socket_call({
+            "type": "log",
+            "agent_name": agent_name,
+            "action_type": action_type,
+            "details": details,
+            "resource_id": resource_id,
+            "matter_id": matter_id,
+        })
+        return
+
     try:
         with _write_lock:
             init_db()
@@ -180,6 +226,10 @@ def get_recent_logs(limit: int = 20) -> list:
     Uses immutable read-only URI so this works on the dashboard's read-only
     data/dbs mount without SQLite needing to touch any lock files.
     """
+    if AUDIT_SOCKET_PATH:
+        result = _socket_call({"type": "recent", "limit": limit})
+        return [tuple(r) for r in result.get("logs", [])]
+
     try:
         if not os.path.exists(DB_PATH):
             return []
@@ -204,6 +254,9 @@ def verify_audit_chain() -> dict:
     Returns {"valid": True, "entries_checked": N} on success, or
     {"valid": False, "first_failed_id": N} on the first broken link.
     """
+    if AUDIT_SOCKET_PATH:
+        return _socket_call({"type": "verify"})
+
     try:
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         rows = conn.execute(
