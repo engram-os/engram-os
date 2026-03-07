@@ -76,6 +76,40 @@ def extract_text(filepath):
         logger.error(f"Failed to read {filename}: {e}")
         return None
 
+def _build_embed_text(keys: dict) -> str | None:
+    """Build a natural language embed sentence from extracted keys.
+
+    Key:value format embeds in a different region of the vector space than
+    natural language queries. Since deduplication is handled by the composite
+    key hash (SHA256), embed_text can be optimised purely for retrieval.
+    """
+    if not keys:
+        return None
+    parts = []
+    if "insurer" in keys:
+        parts.append(keys["insurer"])
+    patient = keys.get("patient", "")
+    if patient:
+        # LAST-FIRST → First Last
+        name_parts = patient.replace("-", " ").split()
+        if len(name_parts) == 2:
+            patient_nl = f"{name_parts[1]} {name_parts[0]}".title()
+        else:
+            patient_nl = patient.replace("-", " ").title()
+        parts.append(f"claim for {patient_nl}")
+    if "claim_number" in keys:
+        parts.append(f"claim number {keys['claim_number']}")
+    if "auth_number" in keys:
+        parts.append(f"authorization number {keys['auth_number']}")
+    if "denial_code" in keys:
+        parts.append(f"denied with code {keys['denial_code']}")
+    if "cpt_code" in keys:
+        parts.append(f"CPT {keys['cpt_code']}")
+    if "icd10" in keys:
+        parts.append(keys["icd10"])
+    return " ".join(parts) if parts else None
+
+
 def scan_inbox():
     if not os.path.exists(INBOX_DIR):
         logger.error(f"Inbox directory not found: {INBOX_DIR}")
@@ -109,7 +143,7 @@ def scan_inbox():
 
         try:
             keys = extract_document_keys(content)
-            embed_text = " ".join(f"{k}:{v}" for k, v in keys.items()) if keys else None
+            embed_text = _build_embed_text(keys)
             if keys:
                 logger.info(f"   Keys extracted: {keys}")
             else:

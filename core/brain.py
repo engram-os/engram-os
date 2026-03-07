@@ -618,7 +618,7 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
             collection_name=COLLECTION_NAME,
             query_vector=query_vector,
             query_filter=models.Filter(must=must),
-            limit=5,
+            limit=10,
             score_threshold=0.45,
         )
         search_hits = search_response.points

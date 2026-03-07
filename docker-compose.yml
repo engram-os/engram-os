@@ -118,6 +118,7 @@ services:
       dockerfile: config/Dockerfile
     container_name: engram_audit
     restart: unless-stopped
+    user: root  # needs write access to the audit_socket volume (root:root 755); no network ports so blast radius is contained
     oom_score_adj: 0
     deploy:
       resources:
