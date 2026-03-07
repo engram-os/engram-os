@@ -112,6 +112,10 @@ def sync_history():
     except Exception as e:
         logger.error(f"Error reading history DB: {e}")
 
+    finally:
+        if os.path.exists(TEMP_DB):
+            os.unlink(TEMP_DB)
+
     return had_error
 
 def _handle_shutdown(sig, frame):
