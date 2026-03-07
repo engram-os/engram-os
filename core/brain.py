@@ -114,6 +114,7 @@ class UserInput(BaseModel):
     embed_text: str | None = Field(default=None, max_length=50_000)
     type: _VALID_CONTENT_TYPES = Field(default="raw_ingestion")
     matter_id: str | None = Field(default=None, max_length=100)
+    document_keys: dict | None = Field(default=None)
 
 
 def _resolve_matter(user: User, matter_id: str | None) -> str | None:
@@ -383,23 +384,29 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
     if resolved_matter is not None:
         must.append(models.FieldCondition(key="matter_id", match=models.MatchValue(value=resolved_matter)))
 
-    similar = client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=vector,
-        query_filter=models.Filter(must=must),
-        limit=1,
-        score_threshold=0.97,
-    )
-    if similar.points:
-        return {
-            "status": "duplicate_skipped",
-            "id": similar.points[0].id,
-            "score": similar.points[0].score,
-        }
+    # Explicit file drops are always intentional — skip semantic dedup.
+    # Sensor data (raw_ingestion, browsing_event) still uses similarity dedup.
+    if content_type != "file_ingest":
+        similar = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=vector,
+            query_filter=models.Filter(must=must),
+            limit=1,
+            score_threshold=0.97,
+        )
+        if similar.points:
+            return {
+                "status": "duplicate_skipped",
+                "id": similar.points[0].id,
+                "score": similar.points[0].score,
+            }
 
-    content_hash = hashlib.sha256(
-        f"{current_user.id}:{text_to_embed}".encode()
-    ).hexdigest()
+    # Use composite key hash when structured keys were extracted (file_ingest),
+    # falling back to content hash for unstructured files or sensor data.
+    doc_keys = item.document_keys or {}
+    primary_id = doc_keys.get("claim_number") or doc_keys.get("auth_number") or doc_keys.get("reference")
+    id_source = f"{current_user.id}:{primary_id}" if primary_id else f"{current_user.id}:{text_to_embed}"
+    content_hash = hashlib.sha256(id_source.encode()).hexdigest()
     point_id = str(uuid.UUID(content_hash[:32]))
 
     data_classification = classify(item.text)
@@ -414,6 +421,7 @@ def ingest_file(item: UserInput, current_user: User = Depends(get_current_user))
             "matter_id": resolved_matter or "",
             "type": content_type,
             "created_at": str(datetime.now()),
+            **doc_keys,
         },
         classification=data_classification.name,
     )
