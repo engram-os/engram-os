@@ -4,7 +4,7 @@ import sqlite3
 import shutil
 import sys
 import time
-import requests
+from core.network_gateway import gateway
 import logging
 from datetime import datetime
 from identity import get_or_create_identity
@@ -23,7 +23,6 @@ TEMP_DB = os.path.join(DBS_DIR, "history_copy.db")
 
 HISTORY_PATH = os.path.expanduser("~/Library/Application Support/Google/Chrome/Default/History")
 
-API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -94,7 +93,7 @@ def sync_history():
             store_text = f"User visited '{title}' ({url}) on {readable_time}"
             
             try:
-                requests.post(API_URL, json={
+                gateway.post("brain", "/ingest", json={
                     "user_id": LOCAL_USER_ID,
                     "text": store_text,
                     "embed_text": embed_text,

@@ -52,7 +52,7 @@ def test_identity_env_var_skips_filesystem(monkeypatch, tmp_path):
 
 def test_embedding_failure_returns_error_not_500(brain_client):
     """ConnectionError on Ollama → /chat returns Embedding Error, not a 500."""
-    with patch("core.brain.requests.post", side_effect=ConnectionError):
+    with patch("core.network_gateway.requests.post", side_effect=ConnectionError):
         response = brain_client.post("/chat", json={"text": "hello"})
 
     assert response.status_code == 200
@@ -105,7 +105,7 @@ def test_ingest_deduplication(brain_client):
     has_match = MagicMock()
     has_match.points = [mock_hit]
 
-    with patch("core.brain.requests.post", return_value=embed_response), \
+    with patch("core.network_gateway.requests.post", return_value=embed_response), \
          patch("core.brain.client._qdrant.query_points", side_effect=[no_match, has_match]), \
          patch("core.brain.client._qdrant.upsert"):
 

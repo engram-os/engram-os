@@ -1,6 +1,9 @@
 import ipaddress
+import os
 import socket
 import logging
+import requests
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -83,3 +86,88 @@ def is_safe_url(url: str) -> bool:
             return False
 
     return True
+
+
+# ── NetworkGateway ────────────────────────────────────────────────────────────
+
+# All outbound HTTP destinations. Values are callables so env vars are resolved
+# at call time, not module import time (important for tests that set env vars).
+_DESTINATIONS: dict[str, callable] = {
+    "ollama":       lambda: os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"),
+    "brain":        lambda: os.getenv("BRAIN_API_URL", "http://localhost:8000"),
+    "linear":       lambda: "https://api.linear.app",
+    "jira":         lambda: os.getenv("JIRA_URL", ""),
+    "qdrant_admin": lambda: f"http://{os.getenv('QDRANT_HOST', 'localhost')}:6334",
+    # "crawler" has no base URL — caller supplies the full URL,
+    # which is validated by is_safe_url before the request is sent.
+    "crawler":      None,
+}
+
+
+class NetworkGateway:
+    """Central enforcement point for all outbound HTTP calls.
+
+    All modules MUST use this class instead of calling `requests` directly.
+    Direct `import requests` is prohibited outside this module.
+
+    Usage:
+        from core.network_gateway import gateway
+
+        gateway.post("ollama", "/api/chat", json=payload, timeout=60)
+        gateway.get("brain", "/api/matters")
+        gateway.get("crawler", full_url)   # is_safe_url checked automatically
+    """
+
+    def _resolve_url(self, destination_label: str, path: str) -> str:
+        if destination_label not in _DESTINATIONS:
+            raise ValueError(f"NetworkGateway: unknown destination '{destination_label}'. "
+                             f"Allowed: {list(_DESTINATIONS)}")
+
+        base_fn = _DESTINATIONS[destination_label]
+
+        if base_fn is None:
+            # "crawler" — path IS the full URL
+            if not is_safe_url(path):
+                raise PermissionError(f"NetworkGateway: URL blocked by SSRF guard: {path!r}")
+            return path
+
+        base = base_fn().rstrip("/")
+        return base + (path if path.startswith("/") else f"/{path}" if path else "")
+
+    def _log(self, method: str, label: str, url: str, status: int | str) -> None:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        logger.info(f"[{ts}] {method.upper()} {label} {url} → {status}")
+
+    def get(self, destination_label: str, path: str = "", **kwargs) -> requests.Response:
+        url = self._resolve_url(destination_label, path)
+        try:
+            resp = requests.get(url, **kwargs)
+            self._log("GET", destination_label, url, resp.status_code)
+            return resp
+        except Exception as e:
+            self._log("GET", destination_label, url, type(e).__name__)
+            raise
+
+    def post(self, destination_label: str, path: str = "", **kwargs) -> requests.Response:
+        url = self._resolve_url(destination_label, path)
+        try:
+            resp = requests.post(url, **kwargs)
+            self._log("POST", destination_label, url, resp.status_code)
+            return resp
+        except Exception as e:
+            self._log("POST", destination_label, url, type(e).__name__)
+            raise
+
+    def delete(self, destination_label: str, path: str = "", **kwargs) -> requests.Response:
+        url = self._resolve_url(destination_label, path)
+        try:
+            resp = requests.delete(url, **kwargs)
+            self._log("DELETE", destination_label, url, resp.status_code)
+            return resp
+        except Exception as e:
+            self._log("DELETE", destination_label, url, type(e).__name__)
+            raise
+
+
+# Module-level singleton — import and use this everywhere.
+gateway = NetworkGateway()

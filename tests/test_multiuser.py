@@ -112,7 +112,7 @@ class TestAuthBehavior:
         no_match = MagicMock()
         no_match.points = []
 
-        with patch("core.brain.requests.post", side_effect=[embed_mock, ollama_mock]), \
+        with patch("core.network_gateway.requests.post", side_effect=[embed_mock, ollama_mock]), \
              patch("core.brain.client._qdrant.query_points", return_value=no_match):
             resp = brain_client.post("/chat", json={"text": "hello"})
 
@@ -229,7 +229,7 @@ class TestMatterEnforcement:
         no_match = MagicMock()
         no_match.points = []
 
-        with patch("core.brain.requests.post", return_value=embed_mock), \
+        with patch("core.network_gateway.requests.post", return_value=embed_mock), \
              patch("core.brain.client._qdrant.query_points", return_value=no_match), \
              patch("core.brain.client._qdrant.upsert"):
             resp = brain_client.post("/ingest", json={"text": "legacy data"})

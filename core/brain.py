@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-import requests
+from core.network_gateway import gateway
 import uuid
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query, Security, Depends
@@ -146,7 +146,7 @@ class QueryRequest(BaseModel):
 
 def get_embedding(text) -> list[float] | None:
     try:
-        res = requests.post(f"{OLLAMA_URL}/api/embeddings", json={
+        res = gateway.post("ollama", "/api/embeddings", json={
             "model": "nomic-embed-text:latest",
             "prompt": text
         }, timeout=30)
@@ -647,8 +647,8 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
         Do not make up or infer any information."""
 
     try:
-        ollama_res = requests.post(
-            f"{OLLAMA_URL}/api/chat",
+        ollama_res = gateway.post(
+            "ollama", "/api/chat",
             json={
                 "model": "llama3.1:latest",
                 "messages": [

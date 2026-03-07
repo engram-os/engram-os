@@ -2,13 +2,12 @@ import sys
 import sounddevice as sd
 import numpy as np
 import whisper
-import requests
+from core.network_gateway import gateway
 import os
 import time
 from scipy.io.wavfile import write
 from core.identity import get_or_create_identity
 
-API_URL = os.getenv("BRAIN_API_URL", "http://localhost:8000/chat")
 WHISPER_MODEL_SIZE = "base" 
 
 IDENTITY = get_or_create_identity()
@@ -46,7 +45,7 @@ def run_jarvis():
             
             
             print("Thinking...")
-            response = requests.post(API_URL, json={"text": user_text, "user_id": LOCAL_USER_ID}, timeout=(5, 60))
+            response = gateway.post("brain", "/chat", json={"text": user_text, "user_id": LOCAL_USER_ID}, timeout=(5, 60))
             
             if response.status_code == 200:
                 data = response.json()

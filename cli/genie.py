@@ -1,5 +1,5 @@
 import sys
-import requests
+from core.network_gateway import gateway
 import os
 
 if len(sys.argv) < 2:
@@ -30,8 +30,8 @@ if len(sys.argv) > 1 and sys.argv[1] == "help":
 
 try:
     print(f"Genie is thinking... [{broken_command}]")
-    response = requests.post(
-        "http://localhost:8000/api/terminal/fix", 
+    response = gateway.post(
+        "brain", "/api/terminal/fix",
         json={"command": broken_command},
         timeout=60
     )

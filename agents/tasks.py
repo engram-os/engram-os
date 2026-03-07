@@ -2,7 +2,7 @@ import os
 import re
 import json
 import logging
-import requests
+from core.network_gateway import gateway
 from core.worker import celery_app
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -113,7 +113,7 @@ def run_email_agent(user_id: str = ""):
         }
         
         try:
-            response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
+            response = gateway.post("ollama", "/api/chat", json=payload, timeout=(5, 60)).json()
             decision = parse_llm_json(response['message']['content'], f"email {email['id']}")
 
             if decision is None:
@@ -232,7 +232,7 @@ def run_calendar_agent(user_id: str = "", matter_id: str = ""):
     }
 
     try:
-        response = requests.post(f"{OLLAMA_HOST}/api/chat", json=payload, timeout=(5, 60)).json()
+        response = gateway.post("ollama", "/api/chat", json=payload, timeout=(5, 60)).json()
         content = response['message']['content']
         decision = parse_llm_json(content, "calendar agent")
 

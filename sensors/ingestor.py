@@ -3,14 +3,13 @@ import signal
 import sys
 import time
 import shutil
-import requests
+from core.network_gateway import gateway
 import logging
 import re
 import pypdf
 import docx
 from identity import get_or_create_identity
 
-API_URL = os.getenv("INGEST_API_URL", "http://localhost:8000/ingest")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
@@ -116,7 +115,7 @@ def scan_inbox():
             else:
                 logger.warning(f"   No structured keys found — falling back to content hash")
 
-            res = requests.post(API_URL, json={
+            res = gateway.post("brain", "/ingest", json={
                 "text": content,
                 "user_id": LOCAL_USER_ID,
                 "type": "file_ingest",

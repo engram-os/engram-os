@@ -95,6 +95,8 @@ services:
     environment:
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
       - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
+      - ENGRAM_API_KEY=${ENGRAM_API_KEY}
+      - BRAIN_API_URL=http://ai_os_api:8000
     depends_on:
       os_layer:
         condition: service_healthy

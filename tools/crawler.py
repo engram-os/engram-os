@@ -1,5 +1,5 @@
 import os
-import requests
+from core.network_gateway import gateway
 from bs4 import BeautifulSoup
 from collections import deque
 from urllib.parse import urljoin, urlparse
@@ -46,7 +46,7 @@ class DocSpider:
             
             try:
                 print(f"   Reading: {current_url}")
-                response = requests.get(current_url, timeout=5)
+                response = gateway.get("crawler", current_url, timeout=5)
                 if response.status_code != 200:
                     continue
                 

@@ -1,5 +1,5 @@
 import os
-import requests
+from core.network_gateway import gateway
 from jira import JIRA
 from pydantic import BaseModel
 from typing import List, Optional
@@ -52,7 +52,6 @@ class IntegrationManager:
         if not self.linear_key:
             return []
 
-        url = "https://api.linear.app/graphql"
         headers = {"Authorization": self.linear_key, "Content-Type": "application/json"}
         
         # GraphQL Query for "My Active Issues"
@@ -73,7 +72,7 @@ class IntegrationManager:
         """
         
         try:
-            response = requests.post(url, headers=headers, json={"query": query}, timeout=(5, 10))
+            response = gateway.post("linear", "/graphql", headers=headers, json={"query": query}, timeout=(5, 10))
             if response.status_code != 200:
                 return []
                 

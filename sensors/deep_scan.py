@@ -1,13 +1,11 @@
-import requests
-
-QDRANT_URL = "http://localhost:6334"
+from core.network_gateway import gateway
 
 def scan_database():
     print("Starting Deep Scan of Qdrant Database...\n")
     
 
     try:
-        col_res = requests.get(f"{QDRANT_URL}/collections", timeout=(5, 10))
+        col_res = gateway.get("qdrant_admin", "/collections", timeout=(5, 10))
         collections = col_res.json().get("result", {}).get("collections", [])
     except Exception as e:
         print(f"Connection Failed: {e}")
@@ -26,8 +24,7 @@ def scan_database():
         print(f"Inspecting Collection: '{name}'")
         
         
-        scroll_url = f"{QDRANT_URL}/collections/{name}/points/scroll"
-        res = requests.post(scroll_url, json={"limit": 10, "with_payload": True}, timeout=(5, 10))
+        res = gateway.post("qdrant_admin", f"/collections/{name}/points/scroll", json={"limit": 10, "with_payload": True}, timeout=(5, 10))
         
         if res.status_code == 200:
             points = res.json().get("result", {}).get("points", [])

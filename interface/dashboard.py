@@ -1,6 +1,6 @@
 """interface/dashboard.py — Engram OS Dashboard"""
 import streamlit as st
-import requests
+from core.network_gateway import gateway
 import os
 import sys
 import html as _esc
@@ -34,7 +34,6 @@ try:
 except Exception:
     icon_image = "🧠"
 
-API_URL     = "http://ai_os_api:8000"
 _api_key    = os.getenv("ENGRAM_API_KEY", "")
 API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
 
@@ -43,7 +42,7 @@ API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
 
 def _get(path: str, timeout: int = 5) -> dict:
     try:
-        r = requests.get(f"{API_URL}{path}", headers=API_HEADERS, timeout=(3, timeout))
+        r = gateway.get("brain", path, headers=API_HEADERS, timeout=(3, timeout))
         return r.json() if r.status_code == 200 else {}
     except Exception:
         return {}
@@ -415,7 +414,7 @@ with st.sidebar:
         if st.button("Create", key="create_matter", type="primary"):
             if nm.strip():
                 try:
-                    r = requests.post(f"{API_URL}/api/matters", params={"name": nm.strip()}, headers=API_HEADERS, timeout=(5, 10))
+                    r = gateway.post("brain", "/api/matters", params={"name": nm.strip()}, headers=API_HEADERS, timeout=(5, 10))
                     (st.success(f"Created '{nm}'") or st.rerun()) if r.status_code == 200 else st.error(r.text)
                 except Exception:
                     st.error("Cannot reach API.")
@@ -428,7 +427,7 @@ with st.sidebar:
             if st.button("Close", key="close_matter"):
                 if cf == cl:
                     try:
-                        r = requests.post(f"{API_URL}/api/matters/{co[cl]}/close", headers=API_HEADERS, timeout=(5, 30))
+                        r = gateway.post("brain", f"/api/matters/{co[cl]}/close", headers=API_HEADERS, timeout=(5, 30))
                         if r.status_code == 200:
                             st.success(f"Closed. {r.json().get('deleted_points', 0)} records removed.")
                             st.rerun()
@@ -455,8 +454,8 @@ with st.sidebar:
                 st.warning("Check the confirmation box.")
             else:
                 try:
-                    r = requests.delete(
-                        f"{API_URL}/api/memory/{del_id.strip()}",
+                    r = gateway.delete(
+                        "brain", f"/api/memory/{del_id.strip()}",
                         headers=API_HEADERS, timeout=(5, 10),
                     )
                     if r.status_code == 200:
@@ -494,8 +493,8 @@ with st.sidebar:
                         params = {"matter_id": dm[dl]}
                         if dt != "all":
                             params["type"] = dt
-                        r = requests.delete(
-                            f"{API_URL}/api/memories",
+                        r = gateway.delete(
+                            "brain", "/api/memories",
                             params=params, headers=API_HEADERS, timeout=(5, 30),
                         )
                         if r.status_code == 200:
@@ -515,7 +514,7 @@ with st.sidebar:
             if st.button("Create user", key="create_user", type="primary"):
                 if un.strip():
                     try:
-                        r = requests.post(f"{API_URL}/api/users", params={"display_name": un.strip(), "role": ur}, headers=API_HEADERS, timeout=(5, 10))
+                        r = gateway.post("brain", "/api/users", params={"display_name": un.strip(), "role": ur}, headers=API_HEADERS, timeout=(5, 10))
                         if r.status_code == 200:
                             d = r.json()
                             st.success(f"Created '{d['display_name']}'")
@@ -616,7 +615,7 @@ with col_chat:
 
     if save_btn and user_input:
         try:
-            r = requests.post(f"{API_URL}/ingest", json={"text": user_input, **_matter_payload()}, headers=API_HEADERS, timeout=(5, 10))
+            r = gateway.post("brain", "/ingest", json={"text": user_input, **_matter_payload()}, headers=API_HEADERS, timeout=(5, 10))
             if r.status_code == 200:
                 st.session_state["messages"].append({"role": "user",   "text": user_input,        "time": datetime.now().strftime("%H:%M")})
                 st.session_state["messages"].append({"role": "engram", "text": "Memory saved.",   "time": datetime.now().strftime("%H:%M"), "classification": ""})
@@ -630,7 +629,7 @@ with col_chat:
         st.session_state["messages"].append({"role": "user", "text": user_input, "time": datetime.now().strftime("%H:%M")})
         with st.spinner(""):
             try:
-                res = requests.post(f"{API_URL}/chat", json={"text": user_input, **_matter_payload()}, headers=API_HEADERS, timeout=(5, 60))
+                res = gateway.post("brain", "/chat", json={"text": user_input, **_matter_payload()}, headers=API_HEADERS, timeout=(5, 60))
                 if res.status_code == 200:
                     d = ChatResponse.model_validate(res.json())
                     st.session_state["messages"].append({"role": "engram", "text": d.reply, "time": datetime.now().strftime("%H:%M"), "classification": "", "context": d.context_used})
@@ -654,14 +653,14 @@ with col_feed:
     with a1:
         if st.button("Calendar", use_container_width=True, key="cal_btn"):
             try:
-                requests.post(f"{API_URL}/run-agents/calendar", headers=API_HEADERS, timeout=(5, 10))
+                gateway.post("brain", "/run-agents/calendar", headers=API_HEADERS, timeout=(5, 10))
                 st.toast("Calendar agent triggered")
             except Exception:
                 st.toast("Cannot reach API")
     with a2:
         if st.button("Email", use_container_width=True, key="email_btn"):
             try:
-                requests.post(f"{API_URL}/run-agents/email", headers=API_HEADERS, timeout=(5, 10))
+                gateway.post("brain", "/run-agents/email", headers=API_HEADERS, timeout=(5, 10))
                 st.toast("Email agent triggered")
             except Exception:
                 st.toast("Cannot reach API")

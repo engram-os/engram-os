@@ -110,7 +110,7 @@ json.dump(data, open('$IDENTITY_FILE', 'w'), indent=2)"
     if [ "$name" == "ui" ]; then
         nohup venv/bin/python -m streamlit run "$script" > data/logs/"$name".log 2>&1 &
     else
-        PYTHONPATH="$(pwd)/core" nohup venv/bin/python "$script" > data/logs/"$name".log 2>&1 &
+        PYTHONPATH="$(pwd):$(pwd)/core" nohup venv/bin/python "$script" > data/logs/"$name".log 2>&1 &
     fi
 
     pid=$!
