@@ -1,28 +1,47 @@
-fastapi
-uvicorn[standard]
-qdrant-client
-requests
-ollama
+# Engram OS — pinned direct dependencies
+# Generated: 2026-03-07 via venv/bin/pip freeze
+# Transitive deps are not pinned here — use pip-compile for full lockfile.
+
+# ── Core API ─────────────────────────────────────────────────────────────────
+fastapi==0.128.8
+uvicorn[standard]==0.40.0
+pydantic==2.12.5
+python-dotenv==1.2.1
+cryptography==46.0.5
+
+# ── Vector / Memory ───────────────────────────────────────────────────────────
+qdrant-client==1.16.2
+chromadb==1.5.0          # remove after ARCH-3 (migrate to Qdrant doc_knowledge)
+
+# ── Task Queue ────────────────────────────────────────────────────────────────
 celery==5.3.6
 redis==5.0.1
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-google-api-python-client
-streamlit          
-watchdog       
-beautifulsoup4
-requests
-chromadb    
-jira
-requests
-streamlit-javascript
-python-docx
-python-dateutil
 
-cryptography
+# ── Google APIs ───────────────────────────────────────────────────────────────
+google-auth==2.48.0
+google-auth-oauthlib==1.2.4
+google-auth-httplib2==0.3.0
+google-api-python-client==2.189.0
 
-# dev / testing
-pytest
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+streamlit==1.54.0
+streamlit-javascript==0.1.5
+
+# ── Sensors & Parsing ─────────────────────────────────────────────────────────
+watchdog==6.0.0
+beautifulsoup4==4.14.0
+pypdf==6.7.5             # was missing from requirements; used by sensors/ingestor.py
+python-docx==1.2.0
+
+# ── HTTP & Utilities ──────────────────────────────────────────────────────────
+requests==2.32.5
+python-dateutil==2.9.0.post0
+ollama==0.6.1
+
+# ── Project Management Integrations ──────────────────────────────────────────
+jira==3.10.5
+
+# ── Dev / Testing ─────────────────────────────────────────────────────────────
+pytest==9.0.2
 pytest-mock
-httpx
+httpx==0.28.1
