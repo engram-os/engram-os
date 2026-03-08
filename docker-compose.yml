@@ -100,6 +100,7 @@ services:
       - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
       - ENGRAM_API_KEY=${ENGRAM_API_KEY}
       - BRAIN_API_URL=http://ai_os_api:8000
+      - PYTHONPATH=/app
     depends_on:
       os_layer:
         condition: service_healthy
