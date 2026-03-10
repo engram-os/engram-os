@@ -149,7 +149,7 @@ engram-os/
 │   ├── Dockerfile
 │   └── requirements.txt           # Pinned direct dependencies
 │
-├── tests/                         # 91 tests, all passing
+├── tests/                         # Test cases
 │
 ├── data/
 │   ├── inbox/                     # Drop files here for auto-ingestion
@@ -587,7 +587,7 @@ PYTHONPATH=core venv/bin/python scripts/seed_demo.py
 
 ```bash
 pytest tests/ -v
-# 91 tests, all passing
+# 91 test cases
 ```
 
 Key test modules:
