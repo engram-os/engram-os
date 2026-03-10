@@ -3,6 +3,7 @@ import streamlit as st
 from core.network_gateway import gateway
 import os
 import sys
+import base64
 import html as _esc
 from datetime import datetime
 from PIL import Image
@@ -89,7 +90,6 @@ LIGHT = dict(
     b_wake   = ("#D0E8FF", "#0051A2"),
     b_skip   = ("#FFF3CD", "#856404"),
     b_def    = ("#EBEBEB", "#555555"),
-    toggle   = "Dark",
 )
 
 DARK = dict(
@@ -116,7 +116,6 @@ DARK = dict(
     b_wake   = ("#0D2A4A", "#7EC8F5"),
     b_skip   = ("#3B2800", "#F5C842"),
     b_def    = ("#333333", "#AAAAAA"),
-    toggle   = "Light",
 )
 
 
@@ -128,6 +127,30 @@ def T() -> dict:
 
 def _css(t: dict) -> None:
     # Inject all theme tokens (main area + sidebar) as CSS variables.
+    # Also inject the correct sun/moon SVG icon for the theme toggle button.
+    _dark = st.session_state.get("dark_mode", False)
+    _c    = t['text']   # hex color e.g. '#ECECEC'
+    _sun_svg  = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"'
+        f' fill="none" stroke="{_c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        f'<circle cx="12" cy="12" r="4"/>'
+        f'<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>'
+        f'<line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>'
+        f'<line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>'
+        f'<line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>'
+        f'<line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>'
+        f'<line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>'
+        f'</svg>'
+    )
+    _moon_svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"'
+        f' fill="none" stroke="{_c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        f'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+        f'</svg>'
+    )
+    _icon_b64    = base64.b64encode((_sun_svg if _dark else _moon_svg).encode()).decode()
+    _toggle_icon = f"url('data:image/svg+xml;base64,{_icon_b64}')"
+
     st.markdown(f"""
 <style>
 :root {{
@@ -148,6 +171,19 @@ def _css(t: dict) -> None:
     --sb-mute: {t['sb_mute']};
     --sb-bdr:  {t['sb_bdr']};
     --sb-sel:  {t['sb_sel']};
+}}
+/* SVG icon for theme toggle — color baked in per theme, base64-encoded */
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child .stButton > button p {{
+    font-size: 0 !important;
+    line-height: 0 !important;
+    margin: 0 !important;
+}}
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child .stButton > button::after {{
+    content: {_toggle_icon};
+    display: block;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -193,8 +229,9 @@ section[data-testid="stSidebar"] .stCaption {
 
 /* ── All buttons: default ── */
 .stButton > button {
-    background: transparent !important;
-    color: var(--muted) !important;
+    background: var(--card) !important;
+    background-color: var(--card) !important;
+    color: var(--txt) !important;
     border: 1px solid var(--border) !important;
     border-radius: 8px !important;
     font-size: 0.82rem !important;
@@ -208,27 +245,70 @@ section[data-testid="stSidebar"] .stCaption {
     border-color: var(--txt) !important;
     color: var(--txt) !important;
 }
+.stButton > button:focus,
+.stButton > button:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
 
 /* ── Primary button ── */
 .stButton > button[kind="primary"] {
     background: var(--sendbg) !important;
+    background-color: var(--sendbg) !important;
     color: var(--sendfg) !important;
     border: none !important;
+    box-shadow: none !important;
 }
 .stButton > button[kind="primary"]:hover {
     opacity: 0.85 !important;
 }
 
-/* ── Sidebar buttons — light on dark background ── */
+/* ── Sidebar buttons ── */
 section[data-testid="stSidebar"] .stButton > button {
     color: var(--sb-mute) !important;
     border-color: var(--sb-bdr) !important;
     background: transparent !important;
+    background-color: transparent !important;
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
     color: var(--sb-txt) !important;
     border-color: var(--sb-txt) !important;
     background: var(--sb-bdr) !important;
+    background-color: var(--sb-bdr) !important;
+}
+
+/* ── Theme toggle — fixed top-right corner ── */
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child {
+    position: fixed !important;
+    top: 0.65rem;
+    right: 1.2rem;
+    z-index: 9999;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+}
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child > [data-testid="stColumn"]:first-child {
+    display: none !important;
+}
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child .stButton > button {
+    border-radius: 50% !important;
+    padding: 0 !important;
+    width: 2.2rem !important;
+    height: 2.2rem !important;
+    min-width: unset !important;
+    border-color: var(--border) !important;
+    background: var(--card) !important;
+    background-color: var(--card) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child .stButton > button:focus,
+.main .block-container > div > [data-testid="stHorizontalBlock"]:first-child .stButton > button:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: var(--border) !important;
 }
 
 /* ── Text input ── */
@@ -243,9 +323,19 @@ section[data-testid="stSidebar"] .stButton > button:hover {
     box-shadow: none !important;
     outline: none !important;
 }
-.stTextInput > div > div > input:focus {
+.stTextInput > div > div > input:focus,
+.stTextInput > div > div > input:focus-visible {
     border-color: var(--txt) !important;
     box-shadow: none !important;
+    outline: none !important;
+}
+.stTextInput > div > div[data-focused="true"],
+.stTextInput > div > div[data-baseweb="input"]:focus-within,
+.stTextInput > div:focus-within,
+.stTextInput:focus-within {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 .stTextInput > div > div > input::placeholder {
     color: var(--muted) !important;
@@ -388,13 +478,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # Theme toggle — always visible: light text on dark sidebar
-    if st.button(f"{t['toggle']} mode", key="theme_toggle", use_container_width=True):
-        st.session_state["dark_mode"] = not st.session_state["dark_mode"]
-        st.rerun()
-
-    st.divider()
-
     # Matter selector
     st.caption("ACTIVE MATTER")
 
@@ -529,6 +612,12 @@ with st.sidebar:
                 st.dataframe([{"name": u["display_name"], "role": u["role"]} for u in users], use_container_width=True, hide_index=True)
 
 # ─── Main layout ──────────────────────────────────────────────────────────────
+
+_, theme_col = st.columns([22, 1])
+with theme_col:
+    if st.button("\u200b", key="theme_toggle", help="Toggle theme"):
+        st.session_state["dark_mode"] = not st.session_state["dark_mode"]
+        st.rerun()
 
 col_chat, col_feed = st.columns([13, 9], gap="large")
 
