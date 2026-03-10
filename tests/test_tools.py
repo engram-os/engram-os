@@ -69,3 +69,16 @@ def test_explicit_time_creates_timed_event():
 
     body = mock_insert.call_args.kwargs["body"]
     assert "dateTime" in body["start"], "2pm should produce a timed (dateTime) event"
+
+
+def test_none_time_falls_back_to_tomorrow():
+    """time=None must not crash — isinstance guard fires before dateutil is called."""
+    service, mock_insert = _make_service()
+
+    # No mock on dateutil_parser.parse — the guard short-circuits before reaching it.
+    with patch("agents.tools.get_calendar_service", return_value=service):
+        result = add_calendar_event("Follow-up call", None)
+
+    assert result["status"] == "success"
+    body = mock_insert.call_args.kwargs["body"]
+    assert "dateTime" in body["start"], "None time should fall back to a timed event tomorrow"

@@ -35,14 +35,19 @@ def add_calendar_event(title: str, time: str, description: str = ""):
     sentinel = datetime.datetime.now().replace(
         hour=_SENTINEL_HOUR, minute=_SENTINEL_MIN, second=0, microsecond=0
     )
-    try:
-        parsed_dt = dateutil_parser.parse(time, fuzzy=True, default=sentinel)
-        # If the parsed time is in the past, assume next occurrence (+7 days)
-        if parsed_dt < datetime.datetime.now():
-            parsed_dt += datetime.timedelta(days=7)
-    except (ParserError, ValueError):
-        logger.warning(f"Could not parse time string {time!r} — defaulting to tomorrow.")
+    # Guard: non-string time (e.g. None from LLM omitting the field) → skip parsing entirely.
+    if not isinstance(time, str):
+        logger.warning(f"No parseable time string ({time!r}) — defaulting to tomorrow.")
         parsed_dt = datetime.datetime.now() + datetime.timedelta(days=1)
+    else:
+        try:
+            parsed_dt = dateutil_parser.parse(time, fuzzy=True, default=sentinel)
+            # If the parsed time is in the past, assume next occurrence (+7 days)
+            if parsed_dt < datetime.datetime.now():
+                parsed_dt += datetime.timedelta(days=7)
+        except (ParserError, ValueError):
+            logger.warning(f"Could not parse time string {time!r} — defaulting to tomorrow.")
+            parsed_dt = datetime.datetime.now() + datetime.timedelta(days=1)
 
     # Use dateTime (timed) if a specific time was given, otherwise all-day date.
     has_time_component = not (parsed_dt.hour == _SENTINEL_HOUR and parsed_dt.minute == _SENTINEL_MIN)
