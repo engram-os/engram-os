@@ -54,30 +54,30 @@ chmod +x scripts/start.sh && ./scripts/start.sh
 ## System Architecture
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          ENGRAM OS — Docker Network                    │
-│                                                                        │
-│  HOST PROCESSES (bare nohup)          DOCKER CONTAINERS               │
-│  ┌────────────────────────┐                                            │
-│  │  sensors/ingestor.py   │──POST /ingest──▶┌─────────────────────┐  │
-│  │  (polls data/inbox/)   │                 │   BRAIN  :8000      │  │
-│  └────────────────────────┘                 │   core/brain.py     │  │
-│  ┌────────────────────────┐  POST /ingest──▶│   FastAPI           │  │
-│  │  sensors/browser_sync  │                 └────────┬────────────┘  │
-│  │  (Chrome/Brave history)│                          │               │
-│  └────────────────────────┘         ┌────────────────┼──────────┐    │
-│                                     │                │          │    │
+┌─────────────────────────────────────────────────────────────────────┐
+│                          ENGRAM OS — Docker Network                 │
+│                                                                     │
+│ HOST PROCESSES (bare nohup)                   DOCKER CONTAINERS     │
+│ ┌────────────────────────┐                                          │
+│ │  sensors/ingestor.py   │──POST /ingest──▶ ┌─────────────────────┐ │
+│ │  (polls data/inbox/)   │                  │   BRAIN  :8000      │ │
+│ └────────────────────────┘                  │   core/brain.py     │ │
+│  ┌────────────────────────┐──POST /ingest──▶│   FastAPI           │ │
+│  │ sensors/browser_sync   │                 └────────┬────────────┘ │ 
+│  │ (Chrome/Brave history) │                          │              │ 
+│  └────────────────────────┘         ┌────────────────┼──────────┐   │
+│                                     │                │          │   │
 │                              ┌──────▼──────┐  ┌──────▼───┐ ┌───▼──┐ │
 │  ┌────────────────────────┐  │  Encrypted  │  │  Audit   │ │Ollama│ │
 │  │  DASHBOARD  :8501      │  │  Memory     │  │  Writer  │ │:11434│ │
 │  │  interface/dashboard   │  │  Client     │  │  (socket)│ │(host)│ │
 │  │  Streamlit             │  │  AES-128    │  │  HMAC    │ └──────┘ │
-│  └───────────┬────────────┘  └──────┬──────┘  └──────────┘         │
+│  └───────────┬────────────┘  └──────┬──────┘  └──────────┘          │
 │              │ GET /api/audit/logs  │                               │
-│              │◀─────────────────────┘           ┌───────────────┐  │
+│              │◀─────────────────────┘            ┌───────────────┐  │
 │              │                           ┌──────▶│    QDRANT     │  │
-│              └──────────────────────────▶│       │  second_brain │  │
-│                    HTTP (Brain API)       │       │  768-dim vecs │  │
+│              │──────────────────────────▶│       │  second_brain │  │ 
+│                    HTTP (Brain API)      │       │  768-dim vecs │  │
 │                                          │       └───────────────┘  │
 │  ┌────────────────────────────────────┐  │       ┌───────────────┐  │
 │  │  CELERY WORKER + BEAT              │  └──────▶│   ChromaDB    │  │
@@ -85,11 +85,11 @@ chmod +x scripts/start.sh && ./scripts/start.sh
 │  │  CalendarAgent (15 min)            │          │  384-dim vecs │  │
 │  │  EmailAgent    (60 min)            │          └───────────────┘  │
 │  └────────────────────────────────────┘                             │
-│                                                                      │
+│                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │  MESSAGE BUS: Redis  ←──────────────── Celery tasks          │   │
 │  └──────────────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -167,9 +167,9 @@ engram-os/
 ## Docker Services
 
 ```
-                  ┌────────────────────────────────────────────────────┐
-                  │         Docker Compose  ── ai_os_net bridge        │
-                  │                                                     │
+                  ┌───────────────────────────────────────────────────┐
+                  │        Docker Compose  ── ai_os_net bridge        │
+                  │                                                   │
                   │   ┌──────────────┐      ┌──────────────────────┐  │
                   │   │  ai_os_vault │      │    ai_os_api         │  │
                   │   │  Qdrant      │◀─────│    FastAPI :8000     │  │
@@ -180,19 +180,19 @@ engram-os/
                   │   │  engram_redis│      │  ai_os_dashboard     │  │
                   │   │  Redis :6379 │◀──── │  Streamlit :8501     │  │
                   │   │  Task broker │      └──────────────────────┘  │
-                  │   └──────┬───────┘                               │
-                  │          │               ┌──────────────────────┐  │
+                  │   └──────┬───────┘                                │
+                  │          │              ┌──────────────────────┐  │
                   │   ┌──────▼───────┐      │  engram_audit        │  │
                   │   │  engram_     │      │  Unix socket server  │  │
                   │   │  worker      │─────▶│  HMAC audit chain    │  │
                   │   │  Celery      │      │  128MB / 0.25 CPU    │  │
                   │   └──────────────┘      └──────────────────────┘  │
-                  │   ┌──────────────┐                               │
-                  │   │  engram_beat │                               │
-                  │   │  Celery Beat │                               │
-                  │   │  Scheduler   │                               │
-                  │   └──────────────┘                               │
-                  └────────────────────────────────────────────────────┘
+                  │   ┌──────────────┐                                │
+                  │   │  engram_beat │                                │
+                  │   │  Celery Beat │                                │
+                  │   │  Scheduler   │                                │
+                  │   └──────────────┘                                │
+                  └───────────────────────────────────────────────────┘
 ```
 
 | Container | Image | Role | Memory Limit |
@@ -213,8 +213,8 @@ Every piece of data passes through a five-layer security stack before it is ever
 
 ```
   Incoming text (chat / ingest / add-memory)
-          │
-          ▼
+                    │
+                    ▼
   ┌───────────────────────────────────────┐
   │  1. Bearer Token Auth                 │
   │     ENGRAM_API_KEY (SHA-256 hashed)   │
@@ -225,9 +225,9 @@ Every piece of data passes through a five-layer security stack before it is ever
                      ▼
   ┌───────────────────────────────────────┐
   │  2. Classification Engine             │
-  │     PHI > Confidential >             │
-  │     Internal > Public                │
-  │     Regex + LLM scoring              │
+  │     PHI > Confidential >              │
+  │     Internal > Public                 │
+  │     Regex + LLM scoring               │
   └──────────────────┬────────────────────┘
                      │
                      ▼
@@ -317,7 +317,7 @@ The audit system uses a **sole-writer architecture** to guarantee log integrity.
         │  Unix socket IPC         │  audit_data volume
         │  /tmp/audit/audit.sock   │
         │─────── {"type": "log", ...} ──────────▶│
-        │◀────── {"ok": true} ──────────────────│
+        │◀────── {"ok": true} ────────────────── │
         │                                        │
         │  message types:                        │  SQLite: /audit/audit.db
         │    log    → append new event           │  each row: timestamp, action,
@@ -335,20 +335,20 @@ The audit system uses a **sole-writer architecture** to guarantee log integrity.
 
 ```
          ┌────────────────────────────────────────────────────────┐
-         │                  Memory Ingestion                       │
-         │                                                         │
+         │                  Memory Ingestion                      │
+         │                                                        │
          │  data/inbox/  ──▶  ingestor.py                         │
-         │    (file drop)       │                                  │
-         │                      ├─ extract_document_keys()         │
-         │                      │   9 regex patterns:              │
-         │                      │   insurer, claim_number,         │
-         │                      │   auth_number, patient,          │
-         │                      │   dos, cpt_code, icd10, ...      │
-         │                      │                                  │
-         │                      ├─ embed_text = key summary string  │
-         │                      │   (NOT full body — prevents      │
-         │                      │    vector collapse on templates) │
-         │                      │                                  │
+         │    (file drop)       │                                 │
+         │                      ├─ extract_document_keys()        │
+         │                      │   9 regex patterns:             │
+         │                      │   insurer, claim_number,        │
+         │                      │   auth_number, patient,         │
+         │                      │   dos, cpt_code, icd10, ...     │
+         │                      │                                 │
+         │                      ├─ embed_text = key summary string│
+         │                      │   (NOT full body — prevents     │
+         │                      │    vector collapse on templates)│
+         │                      │                                 │
          │                      └─▶  POST /ingest  ──▶  Qdrant    │
          └────────────────────────────────────────────────────────┘
 
@@ -356,7 +356,7 @@ The audit system uses a **sole-writer architecture** to guarantee log integrity.
   │  Qdrant  (second_brain)      │    │  ChromaDB  (doc_knowledge)   │
   │                              │    │                              │
   │  Personal memory             │    │  External documentation      │
-  │  nomic-embed-text (768-dim)  │    │  all-MiniLM-L6-v2 (384-dim) │
+  │  nomic-embed-text (768-dim)  │    │  all-MiniLM-L6-v2 (384-dim)  │
   │  Encrypted at rest           │    │  Plain text (public docs)    │
   │  Filtered by user_id +       │    │  Populated via DocSpider     │
   │  matter_id                   │    │  crawler (BFS, BeautifulSoup)│
