@@ -23,21 +23,26 @@
 
 **Prerequisites:**
 - [Docker + Docker Compose](https://docs.docker.com/get-docker/)
+- [Python 3.11+](https://www.python.org/)
 - [Ollama](https://ollama.com/) running on the host at port `11434`
-- Ollama models pulled: `llama3.1:latest` and `nomic-embed-text:latest`
+- Ollama models pulled:
+  ```bash
+  ollama pull llama3.1:latest
+  ollama pull nomic-embed-text:latest
+  ```
 
 ```bash
 # 1. Clone
 git clone https://github.com/engram-os/engram-os.git && cd engram-os
 
-# 2. Set up environment
-cp .env.example .env
-# Edit .env — generate your encryption key:
-#   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# 2. One-time setup — creates venv, installs dependencies, generates secrets
+chmod +x scripts/setup.sh && ./scripts/setup.sh
 
 # 3. Launch everything
-chmod +x scripts/start.sh && ./scripts/start.sh
+./scripts/start.sh
 ```
+
+> **Optional:** To enable Google Calendar and Gmail integration, add your credentials before starting — see [Google OAuth Setup](#google-oauth-setup) below.
 
 **Services after startup:**
 
