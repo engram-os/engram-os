@@ -120,7 +120,35 @@ else
   info "Pins all containers to the same user identity so Qdrant queries return consistent results."
 fi
 
-# ── 4. Required directories ───────────────────────────────────────────────────
+# ── 4. Ollama Models ─────────────────────────────────────────────────────────
+section "Ollama Models"
+
+if ! curl -s --max-time 3 http://localhost:11434/ > /dev/null 2>&1; then
+  warn "Ollama is not running — skipping model check."
+  info "Start Ollama, then re-run this script, or pull models manually:"
+  info "  ollama pull llama3.1:latest"
+  info "  ollama pull nomic-embed-text:latest"
+else
+  OLLAMA_TAGS=$(curl -s --max-time 5 http://localhost:11434/api/tags 2>/dev/null)
+
+  if echo "$OLLAMA_TAGS" | grep -q '"llama3.1'; then
+    pass "llama3.1:latest already pulled — skipping"
+  else
+    printf "Pulling llama3.1:latest (4.7 GB — this may take a few minutes)...\n"
+    ollama pull llama3.1:latest
+    pass "llama3.1:latest ready"
+  fi
+
+  if echo "$OLLAMA_TAGS" | grep -q '"nomic-embed-text'; then
+    pass "nomic-embed-text:latest already pulled — skipping"
+  else
+    printf "Pulling nomic-embed-text:latest...\n"
+    ollama pull nomic-embed-text:latest
+    pass "nomic-embed-text:latest ready"
+  fi
+fi
+
+# ── 5. Required directories ───────────────────────────────────────────────────
 section "Directories"
 
 for dir in data/inbox data/inbox/processed data/dbs data/logs credentials; do
@@ -132,7 +160,7 @@ for dir in data/inbox data/inbox/processed data/dbs data/logs credentials; do
   fi
 done
 
-# ── 5. Summary ────────────────────────────────────────────────────────────────
+# ── 6. Summary ────────────────────────────────────────────────────────────────
 printf "\n${BOLD}══ Setup Complete ══════════════════════════════════${NC}\n\n"
 printf "${GREEN}Your environment is ready.${NC}\n\n"
 printf "Optional next steps:\n"
