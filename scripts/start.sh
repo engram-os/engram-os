@@ -25,6 +25,21 @@ preflight_checks() {
     errors=$((errors + 1))
   else
     printf "${GREEN}✓ Ollama is reachable${NC}\n"
+
+    # 2a. Required models pulled?
+    OLLAMA_TAGS=$(curl -s --max-time 5 http://localhost:11434/api/tags 2>/dev/null)
+    if echo "$OLLAMA_TAGS" | grep -q '"llama3.1'; then
+      printf "${GREEN}✓ llama3.1:latest is available${NC}\n"
+    else
+      printf "${RED}✗ llama3.1:latest not found. Run: ollama pull llama3.1:latest${NC}\n"
+      errors=$((errors + 1))
+    fi
+    if echo "$OLLAMA_TAGS" | grep -q '"nomic-embed-text'; then
+      printf "${GREEN}✓ nomic-embed-text:latest is available${NC}\n"
+    else
+      printf "${RED}✗ nomic-embed-text:latest not found. Run: ollama pull nomic-embed-text:latest${NC}\n"
+      errors=$((errors + 1))
+    fi
   fi
 
   # 3. .env file present?
@@ -37,10 +52,19 @@ preflight_checks() {
     # 4. AUDIT_HMAC_SECRET set? (brain crashes at import if missing)
     if ! grep -q "^AUDIT_HMAC_SECRET=." .env; then
       printf "${RED}✗ AUDIT_HMAC_SECRET not set in .env.${NC}\n"
-      printf "   Fix: echo \"AUDIT_HMAC_SECRET=\$(python3 -c 'import secrets; print(secrets.token_hex(32))')\" >> .env\n"
+      printf "   Fix: run ./scripts/setup.sh\n"
       errors=$((errors + 1))
     else
       printf "${GREEN}✓ AUDIT_HMAC_SECRET is set${NC}\n"
+    fi
+
+    # 5. ENGRAM_ENCRYPTION_KEY set? (divergent keys across containers = unreadable Qdrant data)
+    if ! grep -q "^ENGRAM_ENCRYPTION_KEY=." .env; then
+      printf "${RED}✗ ENGRAM_ENCRYPTION_KEY not set in .env.${NC}\n"
+      printf "   Fix: run ./scripts/setup.sh\n"
+      errors=$((errors + 1))
+    else
+      printf "${GREEN}✓ ENGRAM_ENCRYPTION_KEY is set${NC}\n"
     fi
   fi
 
