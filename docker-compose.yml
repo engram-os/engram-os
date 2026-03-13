@@ -35,8 +35,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "1.0"
+          memory: 2G
+          cpus: "2.0"
     command: uvicorn core.brain:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -45,14 +45,12 @@ services:
       - ./agents:/app/agents
       - ./tools:/app/tools
       - ./data:/app/data
-      - ./engram_db:/app/engram_db
       - ./credentials:/app/credentials:ro
       - audit_socket:/tmp/audit        # IPC socket to audit_writer
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - CELERY_BROKER_URL=redis://redis:6379/0
       - ENGRAM_USER_ID=${ENGRAM_USER_ID}
       - ENGRAM_ENCRYPTION_KEY=${ENGRAM_ENCRYPTION_KEY}
       - AUDIT_SOCKET_PATH=/tmp/audit/audit.sock
@@ -60,8 +58,6 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       qdrant:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       audit_writer:
         condition: service_healthy
