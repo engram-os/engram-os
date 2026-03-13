@@ -285,37 +285,27 @@ def run_calendar_agent(user_id: str = "", matter_id: str = ""):
 # ─── Fan-out helpers — plain functions so they are testable without Celery ────
 
 def _fan_out_calendar():
-    """Dispatch run_calendar_agent for every registered user.
+    """Run run_calendar_agent for every registered user.
 
-    Falls back to a single no-arg task (uses LOCAL_USER_ID) when the user
+    Falls back to a single no-arg call (uses LOCAL_USER_ID) when the user
     registry is empty — preserving single-user behaviour unchanged.
     """
     users = list_users()
     if not users:
-        run_calendar_agent.delay()
+        run_calendar_agent()
         return
     for u in users:
-        run_calendar_agent.delay(user_id=u["id"])
+        run_calendar_agent(user_id=u["id"])
 
 
 def _fan_out_email():
-    """Dispatch run_email_agent for every registered user.
+    """Run run_email_agent for every registered user.
 
     Same single-user fallback as _fan_out_calendar.
     """
     users = list_users()
     if not users:
-        run_email_agent.delay()
+        run_email_agent()
         return
     for u in users:
-        run_email_agent.delay(user_id=u["id"])
-
-
-@celery_app.task(name="agents.tasks.fan_out_calendar")
-def fan_out_calendar():
-    return _fan_out_calendar()
-
-
-@celery_app.task(name="agents.tasks.fan_out_email")
-def fan_out_email():
-    return _fan_out_email()
+        run_email_agent(user_id=u["id"])
