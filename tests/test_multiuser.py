@@ -273,41 +273,41 @@ class TestMatterEnforcement:
 class TestAgentFanOut:
 
     def test_fan_out_calendar_empty_registry_fires_single_default_task(self):
-        """No registered users → one task fired with no args (falls back to LOCAL_USER_ID)."""
+        """No registered users → one direct call with no args (falls back to LOCAL_USER_ID)."""
         from agents.tasks import _fan_out_calendar
         with patch("agents.tasks.list_users", return_value=[]), \
              patch("agents.tasks.run_calendar_agent") as mock_cal:
             _fan_out_calendar()
-        mock_cal.delay.assert_called_once_with()
+        mock_cal.assert_called_once_with()
 
     def test_fan_out_calendar_fires_per_registered_user(self):
-        """Two registered users → two tasks with distinct user_ids."""
+        """Two registered users → two direct calls with distinct user_ids."""
         from agents.tasks import _fan_out_calendar
         users = [{"id": "ua"}, {"id": "ub"}]
         with patch("agents.tasks.list_users", return_value=users), \
              patch("agents.tasks.run_calendar_agent") as mock_cal:
             _fan_out_calendar()
-        assert mock_cal.delay.call_count == 2
-        called_ids = {c.kwargs["user_id"] for c in mock_cal.delay.call_args_list}
+        assert mock_cal.call_count == 2
+        called_ids = {c.kwargs["user_id"] for c in mock_cal.call_args_list}
         assert called_ids == {"ua", "ub"}
 
     def test_fan_out_email_fires_per_registered_user(self):
-        """Two registered users → two email tasks."""
+        """Two registered users → two direct email calls."""
         from agents.tasks import _fan_out_email
         users = [{"id": "ua"}, {"id": "ub"}]
         with patch("agents.tasks.list_users", return_value=users), \
              patch("agents.tasks.run_email_agent") as mock_email:
             _fan_out_email()
-        assert mock_email.delay.call_count == 2
+        assert mock_email.call_count == 2
 
     def test_calendar_trigger_route_includes_user_id(self, brain_client):
-        """POST /run-agents/calendar fires the task with the requesting user's ID."""
+        """POST /run-agents/calendar fires the agent with the requesting user's ID."""
         with patch("core.brain.run_calendar_agent") as mock_task:
             brain_client.post("/run-agents/calendar")
-        mock_task.delay.assert_called_once_with(user_id="test-user-uuid-0001")
+        mock_task.assert_called_once_with(user_id="test-user-uuid-0001")
 
     def test_email_trigger_route_includes_user_id(self, brain_client):
-        """POST /run-agents/email fires the task with the requesting user's ID."""
+        """POST /run-agents/email fires the agent with the requesting user's ID."""
         with patch("core.brain.run_email_agent") as mock_task:
             brain_client.post("/run-agents/email")
-        mock_task.delay.assert_called_once_with(user_id="test-user-uuid-0001")
+        mock_task.assert_called_once_with(user_id="test-user-uuid-0001")
