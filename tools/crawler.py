@@ -3,19 +3,26 @@ from core.network_gateway import gateway
 from bs4 import BeautifulSoup
 from collections import deque
 from urllib.parse import urljoin, urlparse
-import chromadb
-from chromadb.utils import embedding_functions
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams, PointStruct
 import uuid
 
-chroma_client = chromadb.PersistentClient(path="./engram_db")
-
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-ef = embedding_functions.OllamaEmbeddingFunction(
-    url=OLLAMA_URL,
-    model_name="nomic-embed-text:latest"
-)
+QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+DOC_COLLECTION = "doc_knowledge"
 
-collection = chroma_client.get_or_create_collection(name="doc_knowledge", embedding_function=ef)
+qdrant_docs = QdrantClient(host=QDRANT_HOST, port=6333)
+
+
+def _ensure_doc_collection():
+    if not qdrant_docs.collection_exists(DOC_COLLECTION):
+        qdrant_docs.create_collection(
+            collection_name=DOC_COLLECTION,
+            vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+        )
+
+
+_ensure_doc_collection()
 
 class DocSpider:
     def __init__(self, base_url, max_pages=20):
