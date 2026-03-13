@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 # Internal Docker service names that should never be reachable from user input.
-_BLOCKED_HOSTNAMES = {"qdrant", "redis", "ai_os_api", "localhost"}
+_BLOCKED_HOSTNAMES = {"qdrant", "ai_os_api", "localhost"}
 
 # Private/reserved IPv4 networks that must never be the target of a user-supplied URL.
 _PRIVATE_NETWORKS = [
