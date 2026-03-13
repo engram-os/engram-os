@@ -93,11 +93,24 @@ class DocSpider:
         print(f" Crawl Complete. Ingested {pages_crawled} pages.")
 
     def save_knowledge(self, content, source_url, type="text"):
-        """Vectorize and store in ChromaDB"""
-        collection.add(
-            documents=[content],
-            metadatas=[{"source": source_url, "type": type}],
-            ids=[str(uuid.uuid4())]
+        """Vectorize and store in Qdrant doc_knowledge collection"""
+        try:
+            res = gateway.post("ollama", "/api/embeddings", json={
+                "model": "nomic-embed-text:latest",
+                "prompt": content
+            }, timeout=30)
+            vector = res.json()["embedding"]
+        except Exception as e:
+            print(f"Embedding failed for {source_url}: {e}")
+            return
+
+        qdrant_docs.upsert(
+            collection_name=DOC_COLLECTION,
+            points=[PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload={"content": content, "source": source_url, "type": type},
+            )]
         )
 
 # -- Standalone Test --
