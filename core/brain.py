@@ -4,7 +4,7 @@ import logging
 from core.network_gateway import gateway
 import uuid
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Query, Security, Depends
+from fastapi import FastAPI, HTTPException, Query, Security, Depends, BackgroundTasks
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
@@ -15,7 +15,8 @@ import hashlib
 import json
 import sys
 
-from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse, _fan_out_calendar, _fan_out_email
 from agents.logger import verify_audit_chain, log_agent_action, get_recent_logs
 from core.schemas import ChatResponse, IngestResponse, AuditVerifyResponse
 from ollama import Client as OllamaClient
@@ -64,6 +65,15 @@ app.add_middleware(
 app.include_router(terminal_router)
 app.include_router(spectre_router)
 app.include_router(git_router)
+
+_scheduler = AsyncIOScheduler()
+
+@app.on_event("startup")
+async def start_scheduler():
+    _scheduler.add_job(_fan_out_calendar, "interval", minutes=15)
+    _scheduler.add_job(_fan_out_email, "interval", hours=1)
+    _scheduler.start()
+    logger.info("APScheduler started: calendar (15 min), email (60 min)")
 
 OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
@@ -332,19 +342,28 @@ def query_docs(request: QueryRequest, current_user: User = Depends(get_current_u
     return {"answer": response['message']['content'], "sources": list(set(sources))}
 
 @app.post("/trigger-agent")
-async def trigger_agent_test(current_user: User = Depends(get_current_user)):
-    task = test_agent_pulse.delay("Hello from API")
-    return {"message": "Agent triggered", "task_id": task.id}
+async def trigger_agent_test(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    background_tasks.add_task(test_agent_pulse, "Hello from API")
+    return {"message": "Agent triggered"}
 
 @app.post("/run-agents/calendar")
-async def trigger_calendar_check(current_user: User = Depends(get_current_user)):
-    task = run_calendar_agent.delay(user_id=current_user.id)
-    return {"message": "Calendar Agent activated", "task_id": task.id, "user_id": current_user.id}
+async def trigger_calendar_check(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    background_tasks.add_task(run_calendar_agent, user_id=current_user.id)
+    return {"message": "Calendar Agent activated", "user_id": current_user.id}
 
 @app.post("/run-agents/email")
-async def trigger_email_check(current_user: User = Depends(get_current_user)):
-    task = run_email_agent.delay(user_id=current_user.id)
-    return {"message": "Email Agent activated", "task_id": task.id, "user_id": current_user.id}
+async def trigger_email_check(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
+    background_tasks.add_task(run_email_agent, user_id=current_user.id)
+    return {"message": "Email Agent activated", "user_id": current_user.id}
 
 @app.post("/add-memory")
 def add_memory(item: UserInput, current_user: User = Depends(get_current_user)):
