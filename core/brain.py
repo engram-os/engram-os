@@ -37,7 +37,7 @@ from core.matter_registry import (
     close_matter as registry_close_matter,
 )
 
-from tools.crawler import DocSpider, collection
+from tools.crawler import DocSpider
 from core.network_gateway import is_safe_url
 from tools.pm_tools import IntegrationManager
 
@@ -307,17 +307,25 @@ async def ingest_docs(request: CrawlRequest, current_user: User = Depends(get_cu
 
 @app.post("/api/docs/query")
 def query_docs(request: QueryRequest, current_user: User = Depends(get_current_user)):
-    results = collection.query(query_texts=[request.query], n_results=3)
+    query_vector = get_embedding(request.query)
     context_parts = []
     sources = []
 
-    if results['documents']:
-        for i, doc in enumerate(results['documents'][0]):
-            meta = results['metadatas'][0][i]
-            context_parts.append(f"\n--- Source: {meta['source']} ---\n{doc}\n")
-            sources.append(meta['source'])
-    context = "".join(context_parts)
+    if query_vector:
+        try:
+            hits = client._qdrant.query_points(
+                collection_name="doc_knowledge",
+                query=query_vector,
+                limit=3,
+                score_threshold=0.3,
+            )
+            for hit in hits.points:
+                context_parts.append(f"\n--- Source: {hit.payload.get('source', '')} ---\n{hit.payload.get('content', '')}\n")
+                sources.append(hit.payload.get('source', ''))
+        except Exception as e:
+            logger.error(f"Doc query failed: {e}")
 
+    context = "".join(context_parts)
     prompt = f"Answer strictly using context:\n{context}\nQUESTION: {request.query}"
     response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
 
