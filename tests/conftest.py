@@ -11,10 +11,8 @@ from fastapi import APIRouter
 # ── Third-party packages that connect to external services at import time ─────
 for _mod in [
     "qdrant_client", "qdrant_client.http", "qdrant_client.http.models",
-    "chromadb",
     "ollama",
-    "celery", "celery.app", "celery.schedules",
-    "redis",
+    "apscheduler", "apscheduler.schedulers", "apscheduler.schedulers.asyncio",
     "google.auth", "google.auth.transport", "google.auth.transport.requests",
     "google.oauth2", "google.oauth2.credentials",
     "google_auth_oauthlib", "google_auth_oauthlib.flow",
@@ -29,10 +27,7 @@ for _mod in [
     sys.modules.setdefault(_mod, MagicMock())
 
 # ── Project modules with heavy runtime side-effects ──────────────────────────
-# core.worker (Celery) — needs Redis at import time
-sys.modules.setdefault("core.worker", MagicMock())
-
-# tools.crawler — initialises ChromaDB collection at module level
+# tools.crawler — connects to Qdrant at module level (_ensure_doc_collection)
 sys.modules.setdefault("tools.crawler", MagicMock())
 
 # tools.pm_tools — connects to Jira/Linear at import time
