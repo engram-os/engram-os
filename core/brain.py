@@ -592,21 +592,27 @@ def unified_search(
         except Exception as e:
             logger.error(f"Qdrant unified search failed: {e}")
 
-    # 2. ChromaDB — doc knowledge
+    # 2. Qdrant — doc knowledge
     try:
-        chroma_res = collection.query(query_texts=[query], n_results=n_results)
-        if chroma_res["documents"]:
-            for i, doc in enumerate(chroma_res["documents"][0]):
-                meta = chroma_res["metadatas"][0][i]
-                distance = chroma_res["distances"][0][i]
+        if query_vector:
+            doc_hits = client._qdrant.query_points(
+                collection_name="doc_knowledge",
+                query=query_vector,
+                limit=n_results,
+                score_threshold=0.3,
+            )
+            for hit in doc_hits.points:
                 results.append({
                     "source": "doc_knowledge",
-                    "content": doc,
-                    "score": round(1 - distance, 3),
-                    "metadata": meta
+                    "content": hit.payload.get("content", ""),
+                    "score": round(hit.score, 3),
+                    "metadata": {
+                        "source": hit.payload.get("source", ""),
+                        "type": hit.payload.get("type", ""),
+                    },
                 })
     except Exception as e:
-        logger.error(f"ChromaDB unified search failed: {e}")
+        logger.error(f"Doc knowledge unified search failed: {e}")
 
     return {"query": query, "results": results, "total": len(results)}
 
