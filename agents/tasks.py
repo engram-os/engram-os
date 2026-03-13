@@ -3,7 +3,6 @@ import re
 import json
 import logging
 from core.network_gateway import gateway
-from core.worker import celery_app
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from core.memory_client import EncryptedMemoryClient, load_encryption_key
@@ -57,7 +56,6 @@ def parse_llm_json(raw: str, context: str) -> dict | None:
     logger.error(f"parse_llm_json [{context}]: could not parse response: {raw[:500]!r}")
     return None
 
-@celery_app.task(name="agents.tasks.run_email_agent")
 def run_email_agent(user_id: str = ""):
     effective_user_id = user_id or LOCAL_USER_ID
     log_agent_action("EmailAgent", "WAKE_UP", "Checking Inbox for unread messages...")
@@ -138,12 +136,10 @@ def run_email_agent(user_id: str = ""):
             
     return {"status": "done"}
 
-@celery_app.task(name="agents.tasks.test_agent_pulse")
 def test_agent_pulse(data):
     logger.info(f"[AGENT LOG] Pulse received. Processing data: {data}")
     return {"status": "alive"}
 
-@celery_app.task(name="agents.tasks.run_calendar_agent")
 def run_calendar_agent(user_id: str = "", matter_id: str = ""):
     effective_user_id = user_id or LOCAL_USER_ID
     log_agent_action("CalendarAgent", "WAKE_UP", "Agent started scheduled check.")
