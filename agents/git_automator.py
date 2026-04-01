@@ -9,7 +9,7 @@ from core.user_registry import User
 router = APIRouter()
 
 class GitRequest(BaseModel):
-    diff: str = Field(..., min_length=1, max_length=10_000)
+    diff: str = Field(..., min_length=1, max_length=100_000)
     context: str = Field(default="", max_length=2_000)
 
 @router.post("/api/git/commit-msg")
