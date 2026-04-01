@@ -1,0 +1,6 @@
+# Dev / Testing — NOT installed in production Docker images.
+# Install locally with: pip install -r config/requirements-dev.txt
+-r requirements.txt
+pytest==9.0.2
+pytest-mock
+httpx==0.28.1

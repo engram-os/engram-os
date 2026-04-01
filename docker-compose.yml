@@ -115,7 +115,9 @@ services:
       dockerfile: config/Dockerfile
     container_name: engram_audit
     restart: unless-stopped
-    user: root  # needs write access to the audit_socket volume (root:root 755); no network ports so blast radius is contained
+    # Runs as engram (uid 1001) — same as all other services. Volume mountpoints
+    # (/audit, /tmp/audit) are pre-created with engram ownership in the Dockerfile
+    # so Docker initialises the named volumes with the correct permissions.
     oom_score_adj: 0
     deploy:
       resources:

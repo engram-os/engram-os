@@ -1,0 +1,49 @@
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+
+# Virtual environments
+venv/
+auth_venv/
+.venv/
+
+# Tests — never ship test harnesses in production images
+tests/
+pytest.ini
+conftest.py
+
+# Secrets — supplied via env vars and volume mounts at runtime
+.env
+.env.*
+credentials/
+credentials.json
+token.json
+
+# Local data — volume mounted at runtime
+data/
+engram_db/
+
+# Dev-only tooling and documentation
+notes/
+scripts/
+screenshots/
+sensors/
+frontend/
+
+# Docs
+README.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE
+
+# Docker files themselves (not needed at runtime inside the container)
+docker-compose.yml
+docker-compose.override.yml

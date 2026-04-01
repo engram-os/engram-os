@@ -34,12 +34,7 @@ python-docx==1.2.0
 # ── HTTP & Utilities ──────────────────────────────────────────────────────────
 requests==2.32.5
 python-dateutil==2.9.0.post0
-ollama==0.6.1
 
 # ── Project Management Integrations ──────────────────────────────────────────
 jira==3.10.5
 
-# ── Dev / Testing ─────────────────────────────────────────────────────────────
-pytest==9.0.2
-pytest-mock
-httpx==0.28.1

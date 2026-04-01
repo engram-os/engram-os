@@ -129,14 +129,14 @@ class TestAuthBehavior:
 
     def test_key_enforced_missing_header_403(self, brain_client):
         """Non-empty ENGRAM_API_KEY + no header → 403."""
-        with patch("core.brain._ENGRAM_API_KEY", "enforced-secret"):
+        with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}):
             resp = brain_client.post("/chat", json={"text": "hello"})
         assert resp.status_code == 403
 
     def test_key_enforced_wrong_key_403(self, brain_client):
         """Non-empty ENGRAM_API_KEY + wrong key → 403."""
-        with patch("core.brain._ENGRAM_API_KEY", "enforced-secret"), \
-             patch("core.brain.get_user_by_key", return_value=None):
+        with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}), \
+             patch("core.auth.get_user_by_key", return_value=None):
             resp = brain_client.post(
                 "/chat", json={"text": "hello"},
                 headers={"X-API-Key": "wrong-key"}
@@ -147,11 +147,11 @@ class TestAuthBehavior:
         """POST /api/users with a non-admin key → 403."""
         from core.user_registry import User
         non_admin = User(id="u-001", role="user", display_name="Bob")
-        with patch("core.brain._ENGRAM_API_KEY", "enforced-secret"), \
-             patch("core.brain.get_user_by_key", return_value=non_admin):
+        with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}), \
+             patch("core.auth.get_user_by_key", return_value=non_admin):
             resp = brain_client.post(
                 "/api/users",
-                json={"display_name": "Eve", "role": "user"},
+                params={"display_name": "Eve", "role": "user"},
                 headers={"X-API-Key": "non-admin-key"}
             )
         assert resp.status_code == 403
@@ -160,8 +160,8 @@ class TestAuthBehavior:
         """GET /api/users with a non-admin key → 403."""
         from core.user_registry import User
         non_admin = User(id="u-001", role="user", display_name="Bob")
-        with patch("core.brain._ENGRAM_API_KEY", "enforced-secret"), \
-             patch("core.brain.get_user_by_key", return_value=non_admin):
+        with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}), \
+             patch("core.auth.get_user_by_key", return_value=non_admin):
             resp = brain_client.get(
                 "/api/users",
                 headers={"X-API-Key": "non-admin-key"}
@@ -256,8 +256,8 @@ class TestMatterEnforcement:
         """Non-member user providing a matter_id → 403."""
         from core.user_registry import User
         user_b = User(id="u-b", role="user", display_name="Bob")
-        with patch("core.brain._ENGRAM_API_KEY", "enforced-secret"), \
-             patch("core.brain.get_user_by_key", return_value=user_b), \
+        with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}), \
+             patch("core.auth.get_user_by_key", return_value=user_b), \
              patch("core.brain.get_matter", return_value={"id": "m1", "status": "open"}), \
              patch("core.brain.check_access", return_value=False):
             resp = brain_client.post(

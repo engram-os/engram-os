@@ -4,8 +4,7 @@ import logging
 from core.network_gateway import gateway
 import uuid
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Query, Security, Depends, BackgroundTasks
-from fastapi.security import APIKeyHeader
+from fastapi import FastAPI, HTTPException, Query, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from qdrant_client import QdrantClient
@@ -19,13 +18,12 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from agents.tasks import run_calendar_agent, run_email_agent, test_agent_pulse, _fan_out_calendar, _fan_out_email
 from agents.logger import verify_audit_chain, log_agent_action, get_recent_logs
 from core.schemas import ChatResponse, IngestResponse, AuditVerifyResponse
-from ollama import Client as OllamaClient
 
 from agents.terminal import router as terminal_router
 from agents.spectre import router as spectre_router
 from agents.git_automator import router as git_router
 
-from core.identity import get_or_create_identity
+from core.auth import get_current_user, require_admin, LOCAL_USER_ID
 from core.memory_client import EncryptedMemoryClient, load_encryption_key
 from core.classification_engine import classify, Classification
 from core.sanitizer import sanitize
@@ -45,10 +43,7 @@ from tools.pm_tools import IntegrationManager
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-IDENTITY = get_or_create_identity()
-LOCAL_USER_ID = IDENTITY["user_id"]
-
-app = FastAPI(title="Engram OS Brain")
+app = FastAPI(title="Engram OS Brain", docs_url=None, redoc_url=None)
 
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
@@ -75,42 +70,16 @@ async def start_scheduler():
     _scheduler.start()
     logger.info("APScheduler started: calendar (15 min), email (60 min)")
 
-OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 
-# API key auth — only enforced when ENGRAM_API_KEY is set in the environment.
-# When unset (dev mode), all requests receive a synthetic admin identity
-# backed by LOCAL_USER_ID — zero behaviour change for single-user deployments.
-_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-_ENGRAM_API_KEY = os.getenv("ENGRAM_API_KEY")
-
-
-def get_current_user(raw_key: str | None = Security(_api_key_header)) -> User:
-    if not _ENGRAM_API_KEY:
-        # Dev mode: no auth enforced — synthetic admin using machine identity.
-        return User(id=LOCAL_USER_ID, role="admin", display_name="local-admin")
-    if not raw_key:
-        raise HTTPException(status_code=403, detail="X-API-Key header required.")
-    user = get_user_by_key(raw_key)
-    if not user:
-        raise HTTPException(status_code=403, detail="Invalid API key.")
-    return user
-
-
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required.")
-    return current_user
-
-
 # Seed the user registry and default matter on startup (idempotent).
+_ENGRAM_API_KEY = os.getenv("ENGRAM_API_KEY")
 if _ENGRAM_API_KEY:
     bootstrap_admin(LOCAL_USER_ID, _ENGRAM_API_KEY)
     bootstrap_default_matter(LOCAL_USER_ID)
 COLLECTION_NAME = "second_brain"
 MAX_CONTEXT_CHARS = 4000
 
-ollama_client = OllamaClient(host=OLLAMA_URL)
 integration_manager = IntegrationManager()
 
 client = EncryptedMemoryClient(
@@ -304,8 +273,12 @@ def daily_briefing(current_user: User = Depends(get_current_user)):
     Write a concise "Daily Briefing" paragraph (max 3 sentences). 
     """
     
-    response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
-    return {"briefing": response['message']['content'], "tasks": tasks}
+    res = gateway.post(
+        "ollama", "/api/chat",
+        json={"model": "llama3.1:latest", "messages": [{"role": "user", "content": prompt}], "stream": False},
+        timeout=60,
+    )
+    return {"briefing": res.json()["message"]["content"], "tasks": tasks}
 
 @app.post("/api/docs/ingest")
 async def ingest_docs(request: CrawlRequest, current_user: User = Depends(get_current_user)):

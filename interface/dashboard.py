@@ -153,8 +153,6 @@ def _css(t: dict) -> None:
 
     st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-
 /* ── Reset ── */
 html, body, .stApp {
     background: var(--bg) !important;
