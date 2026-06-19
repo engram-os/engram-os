@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Lint & Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('config/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: pip install -r config/requirements.txt
+
+      - name: Gateway bypass lint
+        run: bash scripts/lint_imports.sh
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+        env:
+          # conftest sets these via setdefault — listed here so CI logs show intent
+          AUDIT_HMAC_SECRET: ci-test-hmac-secret-not-used-in-production
+          ENGRAM_API_KEY: ""
+          ENGRAM_USER_ID: ci-test-user-uuid-0000-000000000001

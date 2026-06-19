@@ -20,6 +20,7 @@ from core.user_registry import list_users
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 COLLECTION_NAME = "second_brain"
 LOCAL_USER_ID = get_or_create_identity()["user_id"]
 
@@ -101,7 +102,7 @@ def run_email_agent(user_id: str = ""):
         user_content = f"From: {email['sender']}\nSubject: {email['subject']}\nBody: {email['body']}"
 
         payload = {
-            "model": "llama3.1:latest",
+            "model": LLM_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -218,7 +219,7 @@ def run_calendar_agent(user_id: str = "", matter_id: str = ""):
     """
 
     payload = {
-        "model": "llama3.1:latest",
+        "model": LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Pending Items:\n{memory_text}"}

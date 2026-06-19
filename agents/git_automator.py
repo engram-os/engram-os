@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import os
 import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -6,7 +8,33 @@ from core.auth import get_current_user
 from core.network_gateway import gateway
 from core.user_registry import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
+
+_COMMIT_TYPE = re.compile(
+    r"^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert)(\(.+\))?!?:\s+\S",
+    re.IGNORECASE,
+)
+
+
+def _extract_commit_msg(raw: str) -> str:
+    """Return the cleanest commit message line from a raw LLM response.
+
+    Tries in order:
+    1. First line matching a conventional commit type prefix.
+    2. First non-empty line after stripping markdown fences and wrapping quotes.
+    """
+    cleaned = re.sub(r"```[a-z]*\s*|\s*```", "", raw).strip()
+    for line in cleaned.splitlines():
+        line = line.strip().strip('"`')
+        if _COMMIT_TYPE.match(line):
+            return line
+    for line in cleaned.splitlines():
+        line = line.strip().strip('"`')
+        if line:
+            return line
+    return cleaned
 
 class GitRequest(BaseModel):
     diff: str = Field(..., min_length=1, max_length=100_000)
@@ -33,13 +61,11 @@ async def generate_commit(request: GitRequest, _: User = Depends(get_current_use
 
     res = await asyncio.to_thread(
         gateway.post, "ollama", "/api/chat",
-        json={"model": "llama3.1:latest", "messages": [{"role": "user", "content": prompt}], "stream": False},
+        json={"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
         timeout=60,
     )
-    raw_msg = res.json()["message"]["content"].strip()
-    clean_msg = raw_msg.replace("Here is the commit message:", "").replace("Here's the commit message:", "").strip()
-    clean_msg = clean_msg.strip('"`')
-    return {"message": clean_msg}
+    raw_msg = res.json()["message"]["content"]
+    return {"message": _extract_commit_msg(raw_msg)}
 
 @router.post("/api/git/pr-description")
 async def generate_pr(request: GitRequest, _: User = Depends(get_current_user)):
@@ -63,7 +89,7 @@ async def generate_pr(request: GitRequest, _: User = Depends(get_current_user)):
 
     res = await asyncio.to_thread(
         gateway.post, "ollama", "/api/chat",
-        json={"model": "llama3.1:latest", "messages": [{"role": "user", "content": prompt}], "stream": False},
+        json={"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
         timeout=60,
     )
     return {"markdown": res.json()["message"]["content"]}

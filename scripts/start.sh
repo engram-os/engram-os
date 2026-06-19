@@ -129,23 +129,17 @@ json.dump(data, open('$IDENTITY_FILE', 'w'), indent=2)"
     local name=$1
     local script=$2
     local pid_file=".${name}_pid"
-    local pid
 
-    if [ "$name" == "ui" ]; then
-        nohup venv/bin/python -m streamlit run "$script" > data/logs/"$name".log 2>&1 &
-    else
-        PYTHONPATH="$(pwd):$(pwd)/core" nohup venv/bin/python "$script" > data/logs/"$name".log 2>&1 &
-    fi
-
-    pid=$!
-    
+    PYTHONPATH="$(pwd):$(pwd)/core" nohup venv/bin/python "$script" > data/logs/"$name".log 2>&1 &
+    local pid=$!
     echo $pid > "$pid_file"
     printf "Running $name (PID: $pid)\n"
   }
 
+  # Dashboard runs inside Docker (docker-compose dashboard service on port 8501).
+  # Only the sensors run outside Docker because they need host filesystem access.
   run_processes browser_sync sensors/browser_sync.py
   run_processes ingestor sensors/ingestor.py
-  run_processes ui interface/dashboard.py
 
   printf "${CYAN}SYSTEM ONLINE${NC}\n"
   printf "   - API:        http://localhost:8000\n"

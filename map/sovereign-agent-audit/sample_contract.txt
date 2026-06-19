@@ -1,0 +1,11 @@
+MASTER SERVICES AGREEMENT
+
+This Agreement is entered into by Example Health Group and VendorCo.
+
+VendorCo may process personal data and protected health information (PHI) while providing services. VendorCo shall indemnify Example Health Group from third-party claims arising from VendorCo's breach of confidentiality obligations.
+
+The parties agree that liability for data misuse shall be unlimited liability. This agreement renews automatically for successive one-year terms unless either party gives written notice 60 days before renewal.
+
+This Agreement is governed by the laws of Delaware. Notices may be sent to jane.partner@examplehealth.com or 415-555-0199. The business address is 123 Market Street.
+
+VendorCo may not assign this Agreement without prior written consent, except in connection with a merger or sale of substantially all assets.

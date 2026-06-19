@@ -216,6 +216,18 @@ class TestMatterRegistry:
     def test_get_matter_missing_returns_none(self, matter_reg):
         assert matter_reg.get_matter("ghost-id") is None
 
+    def test_duplicate_matter_name_raises_value_error(self, matter_reg):
+        """Same name + same creator should raise ValueError (UNIQUE index)."""
+        matter_reg.create_matter("Project X", created_by="u1")
+        with pytest.raises(ValueError, match="already exists"):
+            matter_reg.create_matter("Project X", created_by="u1")
+
+    def test_same_name_different_user_is_allowed(self, matter_reg):
+        """Two different users can each have a matter with the same name."""
+        id1 = matter_reg.create_matter("Project X", created_by="u1")
+        id2 = matter_reg.create_matter("Project X", created_by="u2")
+        assert id1 != id2
+
 
 # ─── MUA-2: Matter access enforcement (via brain routes) ─────────────────────
 

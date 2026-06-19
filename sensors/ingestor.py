@@ -3,12 +3,15 @@ import signal
 import sys
 import time
 import shutil
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from core.network_gateway import gateway
 import logging
 import re
 import pypdf
 import docx
 from identity import get_or_create_identity
+
+_PDF_PARSE_TIMEOUT = int(os.getenv("PDF_PARSE_TIMEOUT", "30"))  # seconds
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,19 +50,30 @@ def extract_document_keys(text: str) -> dict:
             keys[field] = match.group(1).strip()
     return keys
 
+def _parse_pdf(filepath: str, filename: str) -> str:
+    """Extract text from all pages of a PDF. Runs in a thread for timeout enforcement."""
+    reader = pypdf.PdfReader(filepath)
+    parts = [page.extract_text() or "" for page in reader.pages]
+    return f"File '{filename}': " + "\n".join(parts)
+
+
 def extract_text(filepath):
     """Smart text extractor for PDF and Text files."""
     filename = os.path.basename(filepath)
     ext = os.path.splitext(filename)[1].lower()
-    
+
     try:
         if ext == '.pdf':
-            reader = pypdf.PdfReader(filepath)
-            parts = []
-            for page in reader.pages:
-                parts.append(page.extract_text() or "")
-            text = "\n".join(parts)
-            return f"File '{filename}': {text}"
+            pool = ThreadPoolExecutor(max_workers=1)
+            future = pool.submit(_parse_pdf, filepath, filename)
+            try:
+                result = future.result(timeout=_PDF_PARSE_TIMEOUT)
+                pool.shutdown(wait=False)
+                return result
+            except FuturesTimeoutError:
+                logger.error(f"PDF parse timed out after {_PDF_PARSE_TIMEOUT}s: {filename}")
+                pool.shutdown(wait=False)  # don't block — thread may still be running
+                return None
             
         elif ext == '.docx':
             doc = docx.Document(filepath)

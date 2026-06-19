@@ -1,4 +1,5 @@
 """interface/dashboard.py — Engram OS Dashboard"""
+import hmac
 import streamlit as st
 from core.network_gateway import gateway
 import os
@@ -380,10 +381,15 @@ _css(t)
 _PP = os.getenv("DASHBOARD_PASSPHRASE", "")
 if _PP and not st.session_state.get("authenticated"):
     st.text_input("Passphrase", type="password", key="pp")
-    if st.button("Unlock", type="primary") and st.session_state.get("pp") == _PP:
+    _pp_input = st.session_state.get("pp", "")
+    if st.button("Unlock", type="primary") and hmac.compare_digest(
+        _pp_input.encode("utf-8"), _PP.encode("utf-8")
+    ):
         st.session_state["authenticated"] = True
         st.rerun()
-    elif st.session_state.get("pp") and st.session_state.get("pp") != _PP:
+    elif _pp_input and not hmac.compare_digest(
+        _pp_input.encode("utf-8"), _PP.encode("utf-8")
+    ):
         st.error("Incorrect passphrase.")
     st.stop()
 
@@ -651,7 +657,13 @@ with col_chat:
                 res = gateway.post("brain", "/chat", json={"text": user_input, **_matter_payload()}, headers=API_HEADERS, timeout=(5, 60))
                 if res.status_code == 200:
                     d = ChatResponse.model_validate(res.json())
-                    st.session_state["messages"].append({"role": "engram", "text": d.reply, "time": datetime.now().strftime("%H:%M"), "classification": "", "context": d.context_used})
+                    _CLF_RANK = {"PUBLIC": 0, "INTERNAL": 1, "CONFIDENTIAL": 2, "PRIVILEGED": 3, "PHI": 4, "PII": 5, "RESTRICTED": 6}
+                    top_clf = max(
+                        (ctx.get("classification", "PUBLIC") for ctx in (d.context_used or [])),
+                        key=lambda c: _CLF_RANK.get(c, 0),
+                        default="",
+                    )
+                    st.session_state["messages"].append({"role": "engram", "text": d.reply, "time": datetime.now().strftime("%H:%M"), "classification": top_clf, "context": d.context_used})
                 else:
                     st.session_state["messages"].append({"role": "engram", "text": f"Error {res.status_code}.", "time": datetime.now().strftime("%H:%M"), "classification": ""})
             except Exception:

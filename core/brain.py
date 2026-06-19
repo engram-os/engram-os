@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from core.network_gateway import gateway
 import uuid
 from datetime import datetime
@@ -43,7 +44,25 @@ from tools.pm_tools import IntegrationManager
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Engram OS Brain", docs_url=None, redoc_url=None)
+LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
+
+_scheduler = AsyncIOScheduler()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # max_instances=1 prevents a second run starting before the first finishes.
+    # misfire_grace_time gives the job a window to start if the scheduler was briefly busy.
+    _scheduler.add_job(_fan_out_calendar, "interval", minutes=15, max_instances=1, misfire_grace_time=60)
+    _scheduler.add_job(_fan_out_email, "interval", hours=1, max_instances=1, misfire_grace_time=120)
+    _scheduler.start()
+    logger.info("APScheduler started: calendar (15 min), email (60 min)")
+    yield
+    _scheduler.shutdown(wait=False)
+    logger.info("APScheduler stopped.")
+
+
+app = FastAPI(title="Engram OS Brain", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
@@ -60,15 +79,6 @@ app.add_middleware(
 app.include_router(terminal_router)
 app.include_router(spectre_router)
 app.include_router(git_router)
-
-_scheduler = AsyncIOScheduler()
-
-@app.on_event("startup")
-async def start_scheduler():
-    _scheduler.add_job(_fan_out_calendar, "interval", minutes=15)
-    _scheduler.add_job(_fan_out_email, "interval", hours=1)
-    _scheduler.start()
-    logger.info("APScheduler started: calendar (15 min), email (60 min)")
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 
@@ -115,6 +125,10 @@ def _resolve_matter(user: User, matter_id: str | None) -> str | None:
     if user.role != "admin" and not check_access(user.id, matter_id):
         raise HTTPException(status_code=403, detail="Access denied to this matter.")
     return matter_id
+
+class UserCreateRequest(BaseModel):
+    display_name: str = Field(..., min_length=1, max_length=100)
+    role: str = Field(default="user")
 
 class CrawlRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2_048)
@@ -168,15 +182,11 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/api/users")
-def create_new_user(
-    display_name: str = Query(..., min_length=1, max_length=100),
-    role: str = Query(default="user"),
-    _admin: User = Depends(require_admin),
-):
-    if role not in ("admin", "user"):
+def create_new_user(body: UserCreateRequest, _admin: User = Depends(require_admin)):
+    if body.role not in ("admin", "user"):
         raise HTTPException(status_code=422, detail="role must be 'admin' or 'user'.")
-    user_id, raw_key = create_user(display_name=display_name, role=role)
-    return {"user_id": user_id, "api_key": raw_key, "display_name": display_name}
+    user_id, raw_key = create_user(display_name=body.display_name, role=body.role)
+    return {"user_id": user_id, "api_key": raw_key, "display_name": body.display_name}
 
 
 @app.get("/api/users")
@@ -196,7 +206,10 @@ def new_matter(
     name: str = Query(..., min_length=1, max_length=200),
     current_user: User = Depends(get_current_user),
 ):
-    matter_id = registry_create_matter(name=name, created_by=current_user.id)
+    try:
+        matter_id = registry_create_matter(name=name, created_by=current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return {"matter_id": matter_id, "name": name}
 
 
@@ -275,7 +288,7 @@ def daily_briefing(current_user: User = Depends(get_current_user)):
     
     res = gateway.post(
         "ollama", "/api/chat",
-        json={"model": "llama3.1:latest", "messages": [{"role": "user", "content": prompt}], "stream": False},
+        json={"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
         timeout=60,
     )
     return {"briefing": res.json()["message"]["content"], "tasks": tasks}
@@ -310,9 +323,12 @@ def query_docs(request: QueryRequest, current_user: User = Depends(get_current_u
 
     context = "".join(context_parts)
     prompt = f"Answer strictly using context:\n{context}\nQUESTION: {request.query}"
-    response = ollama_client.chat(model='llama3.1:latest', messages=[{'role': 'user', 'content': prompt}])
-
-    return {"answer": response['message']['content'], "sources": list(set(sources))}
+    ollama_res = gateway.post(
+        "ollama", "/api/chat",
+        json={"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
+        timeout=60,
+    )
+    return {"answer": ollama_res.json()["message"]["content"], "sources": list(set(sources))}
 
 @app.post("/trigger-agent")
 async def trigger_agent_test(
@@ -645,7 +661,8 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
         lines.append(f"- {sanitized_mem.text}")
         simple_sources.append({
             "memory": mem_text,  # return original to caller, not sanitized
-            "score": round(hit.score, 3)
+            "score": round(hit.score, 3),
+            "classification": hit.payload.get("classification", "PUBLIC"),
         })
     context_str = "\n".join(lines)[:MAX_CONTEXT_CHARS]
 
@@ -671,7 +688,7 @@ def chat_with_memory(item: UserInput, current_user: User = Depends(get_current_u
         ollama_res = gateway.post(
             "ollama", "/api/chat",
             json={
-                "model": "llama3.1:latest",
+                "model": LLM_MODEL,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": sanitized_query.text}

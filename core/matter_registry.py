@@ -64,6 +64,12 @@ def init_matter_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_uma_matter ON user_matter_access(matter_id)"
         )
+        # Prevent duplicate matter names per user. Scoped to created_by so two
+        # different users can each have a matter named "Personal".
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_matters_name_creator "
+            "ON matters(name, created_by)"
+        )
 
 
 def bootstrap_default_matter(admin_user_id: str) -> None:
@@ -92,21 +98,25 @@ def bootstrap_default_matter(admin_user_id: str) -> None:
 def create_matter(name: str, created_by: str) -> str:
     """Create a new matter. Creator is automatically granted access.
     Returns the new matter_id.
+    Raises ValueError if a matter with this name already exists for this user.
     """
     init_matter_db()
     matter_id = str(uuid.uuid4())
     now = str(datetime.now())
-    with _get_conn() as conn:
-        conn.execute(
-            "INSERT INTO matters (id, name, status, created_by, created_at) "
-            "VALUES (?, ?, 'open', ?, ?)",
-            (matter_id, name, created_by, now)
-        )
-        conn.execute(
-            "INSERT INTO user_matter_access "
-            "(user_id, matter_id, granted_by, granted_at) VALUES (?, ?, ?, ?)",
-            (created_by, matter_id, created_by, now)
-        )
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                "INSERT INTO matters (id, name, status, created_by, created_at) "
+                "VALUES (?, ?, 'open', ?, ?)",
+                (matter_id, name, created_by, now)
+            )
+            conn.execute(
+                "INSERT INTO user_matter_access "
+                "(user_id, matter_id, granted_by, granted_at) VALUES (?, ?, ?, ?)",
+                (created_by, matter_id, created_by, now)
+            )
+    except sqlite3.IntegrityError:
+        raise ValueError(f"A matter named '{name}' already exists for this user.")
     return matter_id
 
 

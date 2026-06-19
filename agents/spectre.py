@@ -1,11 +1,16 @@
 import asyncio
+import logging
+import os
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from core.auth import get_current_user
 from core.network_gateway import gateway
 from core.user_registry import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
+
 
 class CodeRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=50_000)
@@ -13,7 +18,7 @@ class CodeRequest(BaseModel):
 
 @router.post("/api/spectre/chat")
 async def spectre_chat(request: CodeRequest, _: User = Depends(get_current_user)):
-    print(f"Reading code...")
+    logger.debug("Spectre code analysis started")
 
     prompt = f"""
     You are an expert Senior Software Engineer.
@@ -31,7 +36,7 @@ async def spectre_chat(request: CodeRequest, _: User = Depends(get_current_user)
     try:
         res = await asyncio.to_thread(
             gateway.post, "ollama", "/api/chat",
-            json={"model": "llama3.1:latest", "messages": [{"role": "user", "content": prompt}], "stream": False},
+            json={"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False},
             timeout=60,
         )
         return {"response": res.json()["message"]["content"]}

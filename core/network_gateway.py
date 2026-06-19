@@ -38,9 +38,10 @@ def is_safe_url(url: str) -> bool:
 
     Checks performed (in order):
       1. Scheme must be http or https
-      2. Hostname must not be in the blocked hostnames set
+      2. Hostname must not be in the blocked hostnames set (case-insensitive)
       3. Hostname must not be in the blocked metadata hosts set
-      4. Hostname resolves to an IP that is not in any private network range
+      4. Hostname resolves to an IP not in any private/reserved range (IPv4 + IPv6)
+         — gethostbyname is IPv4-only; IPv6 literals are handled separately
     """
     try:
         parsed = urlparse(url)
@@ -58,7 +59,7 @@ def is_safe_url(url: str) -> bool:
         logger.warning(f"SSRF guard: no hostname found in '{url}'")
         return False
 
-    # 2. Blocked Docker-internal and loopback hostnames
+    # 2. Blocked Docker-internal and loopback hostnames (case-insensitive)
     if hostname.lower() in _BLOCKED_HOSTNAMES:
         logger.warning(f"SSRF guard: blocked internal hostname '{hostname}' in '{url}'")
         return False
@@ -68,22 +69,50 @@ def is_safe_url(url: str) -> bool:
         logger.warning(f"SSRF guard: blocked metadata hostname '{hostname}' in '{url}'")
         return False
 
-    # 4. Resolve hostname to IP and check against private ranges.
-    #    This prevents DNS rebinding: a public hostname that resolves to a private IP.
+    # 4. Resolve hostname → IP. gethostbyname is IPv4-only; if it fails (e.g. for
+    #    an IPv6 literal like "::1"), fall back to treating the hostname itself as
+    #    a literal IP. This prevents IPv6 loopback/ULA bypass.
+    resolved_ip: str | None = None
     try:
         resolved_ip = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        pass
+
+    if resolved_ip is None:
+        try:
+            ipaddress.ip_address(hostname)  # validates it is a parseable literal IP
+            resolved_ip = hostname
+        except ValueError:
+            logger.warning(f"SSRF guard: could not resolve hostname '{hostname}'")
+            return False
+
+    try:
         ip_obj = ipaddress.ip_address(resolved_ip)
-    except (socket.gaierror, ValueError) as e:
-        logger.warning(f"SSRF guard: could not resolve hostname '{hostname}': {e}")
+    except ValueError as e:
+        logger.warning(f"SSRF guard: invalid resolved IP '{resolved_ip}': {e}")
         return False
 
+    # Python's built-in properties cover both IPv4 and IPv6 private/reserved space:
+    # is_loopback (127.x, ::1), is_link_local (169.254.x, fe80::/10),
+    # is_private (10.x, 172.16-31.x, 192.168.x, fc00::/7, etc.)
+    if ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_private:
+        logger.warning(
+            f"SSRF guard: '{hostname}' resolved to private/reserved IP '{resolved_ip}'. Blocked."
+        )
+        return False
+
+    # Belt-and-suspenders: explicit list for ranges not covered by is_private in
+    # all Python 3.11 patch versions (e.g. 100.64.0.0/10 shared address space).
     for network in _PRIVATE_NETWORKS:
-        if ip_obj in network:
-            logger.warning(
-                f"SSRF guard: '{hostname}' resolved to private IP '{resolved_ip}' "
-                f"(matches {network}). Blocked."
-            )
-            return False
+        try:
+            if ip_obj in network:
+                logger.warning(
+                    f"SSRF guard: '{hostname}' resolved to '{resolved_ip}' "
+                    f"(matches {network}). Blocked."
+                )
+                return False
+        except TypeError:
+            pass  # Mismatched IP version — already handled by is_private above.
 
     return True
 

@@ -3,6 +3,7 @@ import os
 import socket
 import sqlite3
 import datetime
+from datetime import timezone
 import hashlib
 import hmac
 import threading
@@ -50,8 +51,35 @@ def _can_write_db() -> bool:
 _GENESIS_HASH = "0" * 64
 
 # Module-level lock — ensures the read-last-hash → compute-id → insert sequence
-# is atomic even when multiple Celery workers call log_agent_action concurrently.
+# is atomic even when multiple workers call log_agent_action concurrently.
 _write_lock = threading.Lock()
+
+_PRUNE_INTERVAL = 100      # check row count every N inserts
+_PRUNE_MAX_ROWS = 50_000   # keep at most this many rows in the live table
+
+
+def _maybe_prune(conn: sqlite3.Connection, next_id: int) -> None:
+    """Delete oldest rows when the table exceeds _PRUNE_MAX_ROWS.
+
+    Runs every _PRUNE_INTERVAL inserts to amortise the COUNT(*) cost.
+    The chain is still verifiable for all remaining rows (verify_audit_chain
+    handles the case where the first row's prev_entry_hash is non-genesis).
+    """
+    if next_id % _PRUNE_INTERVAL != 0:
+        return
+    row_count: int = conn.execute(
+        "SELECT COUNT(*) FROM activity_log"
+    ).fetchone()[0]
+    if row_count <= _PRUNE_MAX_ROWS:
+        return
+    excess = row_count - _PRUNE_MAX_ROWS
+    cutoff = conn.execute(
+        "SELECT id FROM activity_log ORDER BY id ASC LIMIT 1 OFFSET ?",
+        (excess - 1,),
+    ).fetchone()
+    if cutoff:
+        conn.execute("DELETE FROM activity_log WHERE id <= ?", (cutoff[0],))
+        conn.commit()
 
 
 def _sha256(text: str) -> str:
@@ -100,18 +128,11 @@ def init_db() -> None:
         "CREATE INDEX IF NOT EXISTS idx_activity_log_id ON activity_log(id DESC)"
     )
 
-    # Append-only enforcement — both triggers use RAISE(ABORT, ...) so the
-    # offending statement is rolled back and an exception propagates to the caller.
+    # Prevent in-place edits of audit rows — RAISE(ABORT) rolls back the statement.
+    # DELETE is intentionally allowed for managed TTL pruning (_maybe_prune).
     conn.execute("""
         CREATE TRIGGER IF NOT EXISTS prevent_update
         BEFORE UPDATE ON activity_log
-        BEGIN
-            SELECT RAISE(ABORT, 'audit log is append-only');
-        END
-    """)
-    conn.execute("""
-        CREATE TRIGGER IF NOT EXISTS prevent_delete
-        BEFORE DELETE ON activity_log
         BEGIN
             SELECT RAISE(ABORT, 'audit log is append-only');
         END
@@ -187,7 +208,7 @@ def log_agent_action(
             conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
 
-            timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            timestamp = datetime.datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             prev_hash = _get_last_entry_hash(conn)
 
             # Pre-compute the next id so we can include it in the hash before
@@ -215,6 +236,7 @@ def log_agent_action(
                 ),
             )
             conn.commit()
+            _maybe_prune(conn, next_id)
             conn.close()
     except Exception as e:
         print(f"Logging failed: {e}")
@@ -270,7 +292,13 @@ def verify_audit_chain() -> dict:
     if not rows:
         return {"valid": True, "entries_checked": 0}
 
-    expected_prev = _GENESIS_HASH
+    # If the first row's prev_entry_hash is not the genesis sentinel, the log
+    # was pruned. The chain is still internally consistent from that point — we
+    # verify it from the surviving root rather than failing.
+    first_prev_hash = rows[0][5]
+    pruned = first_prev_hash != _GENESIS_HASH
+    expected_prev = first_prev_hash
+
     for row in rows:
         id_, timestamp, actor_id, action_type, resource_id, prev_hash, stored_hash = row
 
@@ -285,4 +313,7 @@ def verify_audit_chain() -> dict:
 
         expected_prev = stored_hash
 
-    return {"valid": True, "entries_checked": len(rows)}
+    result: dict = {"valid": True, "entries_checked": len(rows)}
+    if pruned:
+        result["pruned"] = True
+    return result

@@ -45,6 +45,36 @@ def save_last_timestamp(ts):
     with open(TIMESTAMP_FILE, "w") as f:
         f.write(str(ts))
 
+def _copy_and_validate_history(src: str, dst: str) -> bool:
+    """Copy the Chrome History DB and verify the copy is a readable SQLite file.
+
+    Chrome holds a write-lock while running — the copy succeeds but may be a
+    WAL-inconsistent snapshot. PRAGMA integrity_check detects this before we
+    attempt to query it, preventing silent ingestion of garbage rows.
+
+    Returns True if the copy passed integrity check, False otherwise.
+    """
+    try:
+        shutil.copy2(src, dst)
+    except Exception as e:
+        logger.error(f"Could not copy history DB: {e}")
+        return False
+
+    try:
+        conn = sqlite3.connect(f"file:{dst}?mode=ro&immutable=1", uri=True)
+        result = conn.execute("PRAGMA integrity_check").fetchone()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Could not open history DB copy for validation: {e}")
+        return False
+
+    if result[0] != "ok":
+        logger.error(f"History DB integrity check failed: {result[0]} — skipping sync cycle")
+        return False
+
+    return True
+
+
 def sync_history():
     last_sync = get_last_timestamp()
 
@@ -52,10 +82,7 @@ def sync_history():
         logger.error(f"Browser history not found at: {HISTORY_PATH}")
         return
 
-    try:
-        shutil.copy2(HISTORY_PATH, TEMP_DB)
-    except Exception as e:
-        logger.error(f"Could not copy DB: {e}")
+    if not _copy_and_validate_history(HISTORY_PATH, TEMP_DB):
         return
 
     had_error = False

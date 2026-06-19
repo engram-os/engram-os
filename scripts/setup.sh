@@ -120,6 +120,20 @@ else
   info "Pins all containers to the same user identity so Qdrant queries return consistent results."
 fi
 
+# ENGRAM_API_KEY
+# Shared secret for authenticating API requests (Bearer token).
+# Without this the system runs in dev mode — all requests accepted (no auth).
+# Set it to activate authentication and protect the API from unauthenticated access.
+if env_is_set "ENGRAM_API_KEY"; then
+  pass "ENGRAM_API_KEY already set — skipping"
+else
+  API_KEY=$(venv/bin/python -c "import secrets; print(secrets.token_urlsafe(32))")
+  set_env_var "ENGRAM_API_KEY" "$API_KEY"
+  pass "ENGRAM_API_KEY generated"
+  info "Enables API authentication. Include as: Authorization: Bearer <key>"
+  info "Store this key — it cannot be recovered, only rotated."
+fi
+
 # ── 4. Ollama Models ─────────────────────────────────────────────────────────
 section "Ollama Models"
 
@@ -164,13 +178,12 @@ done
 printf "\n${BOLD}══ Setup Complete ══════════════════════════════════${NC}\n\n"
 printf "${GREEN}Your environment is ready.${NC}\n\n"
 printf "Optional next steps:\n"
-printf "  ${CYAN}ENGRAM_API_KEY${NC}  — set in .env to enable API authentication (production)\n"
 printf "  ${CYAN}Google OAuth${NC}    — place credentials.json in credentials/ and run:\n"
 printf "                    venv/bin/python scripts/generate_token.py\n"
 printf "  ${CYAN}PM integrations${NC} — add LINEAR_KEY / JIRA_* to .env for Daily Briefing\n"
 printf "\n"
 printf "When ready:\n"
 printf "  ${GREEN}./scripts/start.sh${NC}\n\n"
-printf "${YELLOW}Note on secrets:${NC} ENGRAM_ENCRYPTION_KEY and AUDIT_HMAC_SECRET were generated\n"
-printf "locally on this machine using your OS's built-in secure random generator.\n"
+printf "${YELLOW}Note on secrets:${NC} ENGRAM_ENCRYPTION_KEY, AUDIT_HMAC_SECRET, and ENGRAM_API_KEY\n"
+printf "were generated locally using your OS's built-in secure random generator (/dev/urandom).\n"
 printf "They are stored only in .env and never transmitted externally.\n\n"

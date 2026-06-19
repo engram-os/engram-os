@@ -3,6 +3,7 @@ import logging
 import os
 import sqlite3
 import datetime
+from datetime import timezone
 from googleapiclient.discovery import build
 from email.mime.text import MIMEText
 from agents.auth import get_google_credentials
@@ -55,7 +56,7 @@ def record_processed_email(email_id: str, draft_id: str) -> None:
         conn = sqlite3.connect(_PROCESSED_DB, check_same_thread=False)
         conn.execute(
             "INSERT OR IGNORE INTO processed_emails (email_id, draft_id, processed_at) VALUES (?, ?, ?)",
-            (email_id, draft_id, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+            (email_id, draft_id, datetime.datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         )
         conn.commit()
         conn.close()

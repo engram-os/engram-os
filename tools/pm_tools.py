@@ -1,8 +1,11 @@
+import logging
 import os
 from core.network_gateway import gateway
 from jira import JIRA
 from pydantic import BaseModel
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 # --- Standardized Task Model ---
 class Task(BaseModel):
@@ -45,7 +48,7 @@ class IntegrationManager:
                 ))
             return tasks
         except Exception as e:
-            print(f" Jira Error: {e}")
+            logger.error(f"Jira Error: {e}")
             return []
 
     def get_linear_tasks(self) -> List[Task]:
@@ -91,7 +94,7 @@ class IntegrationManager:
                 ))
             return tasks
         except Exception as e:
-            print(f" Linear Error: {e}")
+            logger.error(f"Linear Error: {e}")
             return []
 
     def get_combined_briefing_data(self):
