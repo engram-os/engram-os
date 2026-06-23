@@ -137,8 +137,7 @@ json.dump(data, open('$IDENTITY_FILE', 'w'), indent=2)"
   }
 
   # Dashboard runs inside Docker (docker-compose dashboard service on port 8501).
-  # Only the sensors run outside Docker because they need host filesystem access.
-  run_processes browser_sync sensors/browser_sync.py
+  # Only the ingestor runs outside Docker because it needs host filesystem access.
   run_processes ingestor sensors/ingestor.py
 
   printf "${CYAN}SYSTEM ONLINE${NC}\n"
