@@ -42,10 +42,11 @@ services:
       - "8000:8000"
     volumes:
       - ./core:/app/core
+      - ./api:/app/api
       - ./agents:/app/agents
       - ./tools:/app/tools
       - ./data:/app/data
-      - ./credentials:/app/credentials:ro
+      - ./credentials:/app/credentials
       - audit_socket:/tmp/audit        # IPC socket to audit_writer
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
@@ -69,41 +70,30 @@ services:
       timeout: 5s
       retries: 5
 
-  # 3. The Dashboard (UI)
+  # 3. The Dashboard (UI) — React/TypeScript SPA served by Nginx
+  # Nginx reverse-proxies /api/*, /chat, /ingest, /run-agents/* to os_layer.
+  # No volumes or env vars needed — the browser supplies the API key at runtime.
   dashboard:
     build:
-      context: .
-      dockerfile: config/Dockerfile
+      context: ./dashboard
+      dockerfile: Dockerfile
     container_name: ai_os_dashboard
     restart: unless-stopped
     oom_score_adj: 500
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
-    command: streamlit run interface/dashboard.py --server.port=8501 --server.address=0.0.0.0
+          memory: 64M
+          cpus: "0.25"
     ports:
       - "8501:8501"
-    volumes:
-      - ./interface:/app/interface
-      - ./core:/app/core:ro
-      - ./agents:/app/agents:ro
-      - ./data/dbs:/app/data/dbs:ro
-      - ./screenshots:/app/screenshots:ro
-    environment:
-      - ENGRAM_USER_ID=${ENGRAM_USER_ID}
-      - AUDIT_HMAC_SECRET=${AUDIT_HMAC_SECRET}
-      - ENGRAM_API_KEY=${ENGRAM_API_KEY}
-      - BRAIN_API_URL=http://ai_os_api:8000
-      - PYTHONPATH=/app
     depends_on:
       os_layer:
         condition: service_healthy
     networks:
       - ai_os_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/"]
       interval: 15s
       timeout: 5s
       retries: 5
