@@ -21,12 +21,7 @@ google-auth-oauthlib==1.2.4
 google-auth-httplib2==0.3.0
 google-api-python-client==2.189.0
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
-streamlit==1.54.0
-streamlit-javascript==0.1.5
-
 # ── Sensors & Parsing ─────────────────────────────────────────────────────────
-watchdog==6.0.0
 beautifulsoup4==4.14.0
 pypdf==6.7.5             # was missing from requirements; used by sensors/ingestor.py
 python-docx==1.2.0
