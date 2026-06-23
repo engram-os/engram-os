@@ -9,15 +9,14 @@ import logging
 import re
 import pypdf
 import docx
-from identity import get_or_create_identity
+from core.identity import get_or_create_identity
 
 _PDF_PARSE_TIMEOUT = int(os.getenv("PDF_PARSE_TIMEOUT", "30"))  # seconds
-
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 
-INBOX_DIR = os.path.join(root_dir, "data", "inbox") 
+INBOX_DIR = os.path.join(root_dir, "data", "inbox")
 PROCESSED_DIR = os.path.join(INBOX_DIR, "processed")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -25,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 IDENTITY = get_or_create_identity()
 LOCAL_USER_ID = IDENTITY["user_id"]
+
+_api_key = os.getenv("ENGRAM_API_KEY", "")
+_API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
 
 os.makedirs(INBOX_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
@@ -169,7 +171,7 @@ def scan_inbox():
                 "type": "file_ingest",
                 "embed_text": embed_text,
                 "document_keys": keys,
-            }, timeout=(5, 10))
+            }, headers=_API_HEADERS, timeout=(5, 10))
 
             if res.status_code == 200:
                 body = res.json()
