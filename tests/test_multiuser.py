@@ -250,7 +250,7 @@ class TestMatterEnforcement:
 
     def test_missing_matter_returns_404(self, brain_client):
         """matter_id that doesn't exist in the registry → 404."""
-        with patch("core.brain.get_matter", return_value=None):
+        with patch("api.matters.get_matter", return_value=None):
             resp = brain_client.post(
                 "/ingest", json={"text": "ghost matter", "matter_id": "nonexistent"}
             )
@@ -258,7 +258,7 @@ class TestMatterEnforcement:
 
     def test_closed_matter_returns_410(self, brain_client):
         """Accessing a closed matter → 410 Gone."""
-        with patch("core.brain.get_matter", return_value={"id": "m1", "status": "closed"}):
+        with patch("api.matters.get_matter", return_value={"id": "m1", "status": "closed"}):
             resp = brain_client.post(
                 "/ingest", json={"text": "after close", "matter_id": "m1"}
             )
@@ -270,8 +270,8 @@ class TestMatterEnforcement:
         user_b = User(id="u-b", role="user", display_name="Bob")
         with patch.dict("os.environ", {"ENGRAM_API_KEY": "enforced-secret"}), \
              patch("core.auth.get_user_by_key", return_value=user_b), \
-             patch("core.brain.get_matter", return_value={"id": "m1", "status": "open"}), \
-             patch("core.brain.check_access", return_value=False):
+             patch("api.matters.get_matter", return_value={"id": "m1", "status": "open"}), \
+             patch("api.matters.check_access", return_value=False):
             resp = brain_client.post(
                 "/ingest",
                 json={"text": "classified doc", "matter_id": "m1"},
@@ -314,12 +314,12 @@ class TestAgentFanOut:
 
     def test_calendar_trigger_route_includes_user_id(self, brain_client):
         """POST /run-agents/calendar fires the agent with the requesting user's ID."""
-        with patch("core.brain.run_calendar_agent") as mock_task:
+        with patch("api.agents.run_calendar_agent") as mock_task:
             brain_client.post("/run-agents/calendar")
         mock_task.assert_called_once_with(user_id="test-user-uuid-0001")
 
     def test_email_trigger_route_includes_user_id(self, brain_client):
         """POST /run-agents/email fires the agent with the requesting user's ID."""
-        with patch("core.brain.run_email_agent") as mock_task:
+        with patch("api.agents.run_email_agent") as mock_task:
             brain_client.post("/run-agents/email")
         mock_task.assert_called_once_with(user_id="test-user-uuid-0001")
