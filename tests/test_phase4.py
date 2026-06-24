@@ -4,7 +4,6 @@ Covers:
 - REL-9: PDF parse timeout via ThreadPoolExecutor
 - REL-10: Crawler duplicate URL queue (queued set)
 - REL-11: Crawler 4xx/5xx retry logic
-- REL-7: Chrome history copy integrity check
 
 Import notes:
 - sensors/* use `from identity import get_or_create_identity` which resolves
@@ -12,7 +11,6 @@ Import notes:
 - tools.crawler is stubbed in conftest (module-level Qdrant connection).
   Tests that need the real module pop the stub and restore it after.
 """
-import sqlite3
 import sys
 import time
 from unittest.mock import MagicMock, patch
@@ -20,8 +18,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # ── Stub `identity` so sensors can be imported ────────────────────────────────
-# sensors/ingestor.py and sensors/browser_sync.py call get_or_create_identity()
-# at module level. `identity` lives in core/ which isn't on the test PYTHONPATH.
+# sensors/ingestor.py calls get_or_create_identity() at module level.
+# `identity` lives in core/ which isn't on the test PYTHONPATH.
 if "identity" not in sys.modules:
     _id_stub = MagicMock()
     _id_stub.get_or_create_identity.return_value = {"user_id": "test-user-uuid-0001"}
@@ -200,46 +198,3 @@ class TestCrawlerRetry:
 
         assert resp.status_code == 200
         assert mock_get.call_count == 1
-
-
-# ─── REL-7: Chrome history copy integrity ─────────────────────────────────────
-
-class TestHistoryCopyIntegrity:
-
-    @pytest.fixture
-    def browser_sync(self):
-        import importlib
-        stub = sys.modules.pop("sensors.browser_sync", None)
-        try:
-            mod = importlib.import_module("sensors.browser_sync")
-            yield mod
-        finally:
-            sys.modules.pop("sensors.browser_sync", None)
-            if stub:
-                sys.modules["sensors.browser_sync"] = stub
-
-    def test_valid_sqlite_returns_true(self, tmp_path, browser_sync):
-        src = tmp_path / "History"
-        dst = tmp_path / "history_copy.db"
-        conn = sqlite3.connect(str(src))
-        conn.execute("CREATE TABLE urls (url TEXT, title TEXT, last_visit_time INTEGER)")
-        conn.commit()
-        conn.close()
-        assert browser_sync._copy_and_validate_history(str(src), str(dst)) is True
-
-    def test_corrupt_file_returns_false(self, tmp_path, browser_sync, caplog):
-        import logging
-        src = tmp_path / "History"
-        dst = tmp_path / "history_copy.db"
-        src.write_bytes(b"this is not a sqlite database")
-        with caplog.at_level(logging.ERROR, logger="sensors.browser_sync"):
-            result = browser_sync._copy_and_validate_history(str(src), str(dst))
-        assert result is False
-
-    def test_missing_source_returns_false(self, tmp_path, browser_sync, caplog):
-        import logging
-        with caplog.at_level(logging.ERROR, logger="sensors.browser_sync"):
-            result = browser_sync._copy_and_validate_history(
-                str(tmp_path / "nonexistent"), str(tmp_path / "dst.db")
-            )
-        assert result is False
