@@ -47,7 +47,7 @@ def test_delete_memory_success(brain_client):
 
     with patch("core.brain.client._qdrant.retrieve", return_value=[mock_point]), \
          patch("core.brain.client._qdrant.delete") as mock_delete, \
-         patch("core.brain.log_agent_action") as mock_log:
+         patch("api.memory.log_agent_action") as mock_log:
         resp = brain_client.delete(f"/api/memory/{_VALID_UUID}")
 
     assert resp.status_code == 200
@@ -79,8 +79,8 @@ def test_delete_memories_missing_matter_id(brain_client):
 def test_delete_memories_batch_with_type(brain_client):
     """Batch delete with type filter: delete() called, DELETE_BATCH audit emitted."""
     with patch("core.brain.client._qdrant.delete") as mock_delete, \
-         patch("core.brain.log_agent_action") as mock_log, \
-         patch("core.brain._resolve_matter", return_value="matter-123"):
+         patch("api.memory.log_agent_action") as mock_log, \
+         patch("api.memory._resolve_matter", return_value="matter-123"):
         resp = brain_client.delete(
             "/api/memories",
             params={"matter_id": "matter-123", "type": "file_ingest"},
