@@ -19,7 +19,6 @@ for _mod in [
     "googleapiclient", "googleapiclient.discovery",
     "streamlit",
     "jira",
-    "watchdog", "watchdog.observers", "watchdog.events",
     "bs4",
     "pypdf",
     "dateutil", "dateutil.parser",
