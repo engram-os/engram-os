@@ -8,6 +8,32 @@ import sys
 from unittest.mock import MagicMock
 from fastapi import APIRouter
 
+
+# ── MCP stub — FastMCP.tool() / .resource() must be identity decorators so
+# tool functions remain directly callable in tests. A plain MagicMock would
+# wrap them in another MagicMock and break direct invocation.
+class _FakeFastMCP:
+    def __init__(self, name: str = ""):
+        self.name = name
+
+    def tool(self):
+        def decorator(fn): return fn
+        return decorator
+
+    def resource(self, pattern: str):
+        def decorator(fn): return fn
+        return decorator
+
+    def sse_app(self):
+        return MagicMock()
+
+
+_fastmcp_mod = MagicMock()
+_fastmcp_mod.FastMCP = _FakeFastMCP
+sys.modules["mcp"] = MagicMock()
+sys.modules["mcp.server"] = MagicMock()
+sys.modules["mcp.server.fastmcp"] = _fastmcp_mod
+
 # ── Third-party packages that connect to external services at import time ─────
 for _mod in [
     "qdrant_client", "qdrant_client.http", "qdrant_client.http.models",
