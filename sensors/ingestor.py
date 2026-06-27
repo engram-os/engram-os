@@ -9,6 +9,7 @@ import logging
 import re
 import pypdf
 import docx
+import openpyxl
 from core.identity import get_or_create_identity
 
 _PDF_PARSE_TIMEOUT = int(os.getenv("PDF_PARSE_TIMEOUT", "30"))  # seconds
@@ -18,6 +19,7 @@ root_dir = os.path.dirname(current_dir)
 
 INBOX_DIR = os.path.join(root_dir, "data", "inbox")
 PROCESSED_DIR = os.path.join(INBOX_DIR, "processed")
+FAILED_DIR = os.path.join(INBOX_DIR, "failed")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ _API_HEADERS = {"X-API-Key": _api_key} if _api_key else {}
 
 os.makedirs(INBOX_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
+os.makedirs(FAILED_DIR, exist_ok=True)
 
 PATTERNS = {
     "insurer":      r"(?i)(?:claim\s+denial\s+notice|prior\s+authorization[\w\s]*)\s*[—\-]+\s*(.+)",
@@ -82,7 +85,22 @@ def extract_text(filepath):
             text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
             return f"File '{filename}': {text}"
 
-        elif ext in ['.txt', '.md', '.py', '.js', '.csv', '.json']:
+        elif ext == '.xlsx':
+            wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+            parts = []
+            for sheet in wb.worksheets:
+                rows = []
+                for row in sheet.iter_rows():
+                    cells = [str(cell.value) for cell in row if cell.value is not None]
+                    if cells:
+                        rows.append("\t".join(cells))
+                if rows:
+                    parts.append(f"[Sheet: {sheet.title}]\n" + "\n".join(rows))
+            wb.close()
+            return f"File '{filename}':\n" + "\n\n".join(parts) if parts else None
+
+        elif ext in ['.txt', '.md', '.py', '.js', '.ts', '.csv', '.json',
+                     '.yaml', '.yml', '.html', '.xml', '.rst']:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 return f"File '{filename}': {f.read()}"
 
@@ -126,15 +144,29 @@ def _build_embed_text(keys: dict) -> str | None:
     return " ".join(parts) if parts else None
 
 
+def _quarantine(filepath: str, reason: str) -> None:
+    """Move a file to FAILED_DIR with a reason suffix so failures are inspectable."""
+    filename = os.path.basename(filepath)
+    root, ext = os.path.splitext(filename)
+    dest = os.path.join(FAILED_DIR, f"{root}_{reason}{ext}")
+    if os.path.exists(dest):
+        dest = os.path.join(FAILED_DIR, f"{root}_{reason}_{int(time.time() * 1000)}{ext}")
+    try:
+        shutil.move(filepath, dest)
+        logger.warning("   Quarantined → failed/%s", os.path.basename(dest))
+    except Exception as e:
+        logger.error("   Could not quarantine %s: %s", filename, e)
+
+
 def scan_inbox():
     if not os.path.exists(INBOX_DIR):
-        logger.error(f"Inbox directory not found: {INBOX_DIR}")
+        logger.error("Inbox directory not found: %s", INBOX_DIR)
         return
 
     try:
         files = [f for f in os.listdir(INBOX_DIR) if os.path.isfile(os.path.join(INBOX_DIR, f))]
     except Exception as e:
-        logger.error(f"Error reading inbox: {e}")
+        logger.error("Error reading inbox: %s", e)
         return
 
     if not files:
@@ -142,28 +174,37 @@ def scan_inbox():
 
     had_error = False
     for filename in files:
-        if filename.startswith("."): continue 
-        
-        filepath = os.path.join(INBOX_DIR, filename)
-        logger.info(f"Detected: {filename}")
-        
-        content = extract_text(filepath)
-        
-        if not content:
-            logger.warning(f"   Skipping unknown file type: {filename}")
-            try:
-                shutil.move(filepath, os.path.join(PROCESSED_DIR, filename))
-            except Exception:
-                pass
+        if filename.startswith("."):
             continue
+
+        filepath = os.path.join(INBOX_DIR, filename)
+        size_kb = os.path.getsize(filepath) / 1024
+        ext = os.path.splitext(filename)[1].lower()
+        logger.info("Detected: %s (%.1f KB, type=%s)", filename, size_kb, ext or "none")
+
+        t0 = time.monotonic()
+        try:
+            content = extract_text(filepath)
+        except Exception as e:
+            logger.error("   Parse error for %s: %s", filename, e)
+            _quarantine(filepath, "parse_error")
+            continue
+        parse_ms = int((time.monotonic() - t0) * 1000)
+
+        if content is None:
+            logger.warning("   Unsupported file type: %s (%.0f ms)", filename, parse_ms)
+            _quarantine(filepath, "unsupported")
+            continue
+
+        logger.info("   Parsed in %d ms, %d chars", parse_ms, len(content))
 
         try:
             keys = extract_document_keys(content)
             embed_text = _build_embed_text(keys)
             if keys:
-                logger.info(f"   Keys extracted: {keys}")
+                logger.info("   Keys extracted: %s", keys)
             else:
-                logger.warning(f"   No structured keys found — falling back to content hash")
+                logger.warning("   No structured keys found — falling back to content hash")
 
             res = gateway.post("brain", "/ingest", json={
                 "text": content,
@@ -176,24 +217,24 @@ def scan_inbox():
             if res.status_code == 200:
                 body = res.json()
                 if body.get("status") == "duplicate_skipped":
-                    logger.warning(f"   Duplicate skipped (already stored): {filename}")
+                    logger.warning("   Duplicate skipped (already stored): %s", filename)
                 else:
-                    logger.info(f"   Ingested as new memory (id={body.get('id', '?')})")
+                    logger.info("   Ingested as new memory (id=%s)", body.get("id", "?"))
 
                 destination = os.path.join(PROCESSED_DIR, filename)
                 if os.path.exists(destination):
                     timestamp = int(time.time() * 1000)
                     root, ext = os.path.splitext(filename)
                     destination = os.path.join(PROCESSED_DIR, f"{root}_{timestamp}{ext}")
-                
+
                 shutil.move(filepath, destination)
-                logger.info(f"-> Moved to 'processed/'")
+                logger.info("   -> Moved to processed/")
             else:
-                logger.error(f"API Error: {res.status_code}")
+                logger.error("   API error %s for %s — will retry next poll", res.status_code, filename)
                 had_error = True
 
         except Exception as e:
-            logger.error(f"Connection Failed (Is the Brain online?): {e}")
+            logger.error("   Connection failed (Is the Brain online?): %s", e)
             had_error = True
 
     return had_error
