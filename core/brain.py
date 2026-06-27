@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from agents.tasks import _fan_out_calendar, _fan_out_email
 from core.auth import LOCAL_USER_ID
 from core.deps import client  # noqa: F401 — re-exported so test patches on core.brain.client still resolve
 from core.user_registry import bootstrap_admin
@@ -25,6 +24,7 @@ from api.memory import router as memory_router
 from api.chat import router as chat_router
 from api.openai_compat import router as openai_router
 from api.mcp_server import mcp
+from core.scheduler import load_agent_definitions
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -34,10 +34,9 @@ _scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _scheduler.add_job(_fan_out_calendar, "interval", minutes=15, max_instances=1, misfire_grace_time=60)
-    _scheduler.add_job(_fan_out_email, "interval", hours=1, max_instances=1, misfire_grace_time=120)
+    n = load_agent_definitions(_scheduler)
     _scheduler.start()
-    logger.info("APScheduler started: calendar (15 min), email (60 min)")
+    logger.info("APScheduler started: %d agent(s) registered from YAML definitions", n)
     yield
     _scheduler.shutdown(wait=False)
     logger.info("APScheduler stopped.")
