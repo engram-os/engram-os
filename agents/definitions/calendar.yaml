@@ -1,0 +1,7 @@
+name: calendar
+description: Scans encrypted memories and schedules Google Calendar events
+handler: agents.tasks._fan_out_calendar
+schedule:
+  type: interval
+  minutes: 15
+enabled: true
