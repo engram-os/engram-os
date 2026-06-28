@@ -1,0 +1,7 @@
+name: email
+description: Scans encrypted memories and processes Gmail drafts and replies
+handler: agents.tasks._fan_out_email
+schedule:
+  type: interval
+  hours: 1
+enabled: true
