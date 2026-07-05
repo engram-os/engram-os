@@ -60,6 +60,8 @@ notes/
 
 .env
 
+.next/
+
 venv/
 
 data/
