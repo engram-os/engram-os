@@ -4,6 +4,10 @@ from typing import Iterator, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
+# Keep models resident in RAM between requests. Ollama's default is 5 minutes,
+# after which the next request pays a full model reload from disk.
+KEEP_ALIVE = "30m"
+
 
 @runtime_checkable
 class LLMEngine(Protocol):
@@ -25,7 +29,7 @@ class OllamaEngine:
         try:
             res = self._gateway.post(
                 "ollama", "/api/embeddings",
-                json={"model": "nomic-embed-text:latest", "prompt": text},
+                json={"model": "nomic-embed-text:latest", "prompt": text, "keep_alive": KEEP_ALIVE},
                 timeout=30,
             )
             return res.json()["embedding"]
@@ -41,6 +45,7 @@ class OllamaEngine:
                     "model": model or self._default_model,
                     "messages": messages,
                     "stream": False,
+                    "keep_alive": KEEP_ALIVE,
                 },
                 timeout=60,
             )
@@ -57,6 +62,7 @@ class OllamaEngine:
                     "model": model or self._default_model,
                     "messages": messages,
                     "stream": True,
+                    "keep_alive": KEEP_ALIVE,
                 },
                 stream=True,
                 timeout=60,
