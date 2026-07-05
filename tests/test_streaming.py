@@ -97,3 +97,23 @@ def _parse_sse(text: str) -> list[dict]:
                 except json.JSONDecodeError:
                     pass
     return events
+
+
+# ─── URL stripping (context hygiene) ─────────────────────────────────────────
+
+def test_strip_urls_removes_links_and_collapses_whitespace():
+    from api.chat import _strip_urls
+    raw = ("You visited 'ChatGPT Plans' "
+           "(https://chatgpt.com/pricing/?utm_source=google&gclid=abc123) "
+           "on 2026-06-16.")
+    cleaned = _strip_urls(raw)
+    assert "http" not in cleaned
+    assert "gclid" not in cleaned
+    assert "  " not in cleaned
+    assert "You visited 'ChatGPT Plans'" in cleaned
+    assert "on 2026-06-16." in cleaned
+
+
+def test_strip_urls_leaves_urlless_text_untouched():
+    from api.chat import _strip_urls
+    assert _strip_urls("Prefers dark mode.") == "Prefers dark mode."
