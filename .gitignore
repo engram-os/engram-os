@@ -21,7 +21,7 @@ chroma.sqlite3
 
 dist/
  
-cli/node_modules
+node_modules/
 
 *.log
 *.pid
@@ -55,6 +55,8 @@ data/logs/
 data/dbs/
 
 .claude/
+
+dashboard/node_modules/
 
 notes/
 
