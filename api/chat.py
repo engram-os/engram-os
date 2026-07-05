@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import re
 from typing import Generator
 
 from fastapi import APIRouter, Depends
@@ -20,6 +21,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_CONTEXT_CHARS = 4000
+
+_URL_RE = re.compile(r"\(?https?://\S+\)?")
+
+
+def _strip_urls(text: str) -> str:
+    """Remove raw URLs before text reaches the LLM. Small local models quote
+    context verbatim, so stripping here is the only reliable way to keep
+    tracking-parameter noise out of answers. Full text stays in context_used."""
+    return re.sub(r"\s{2,}", " ", _URL_RE.sub("", text)).strip()
 
 
 def _sse(data: dict) -> str:
@@ -56,7 +66,7 @@ def _build_context(item: UserInput, current_user, resolved_matter):
         mem_text = hit.payload.get("memory") or "Unknown info"
         mem_classification = Classification[hit.payload.get("classification", "PUBLIC")]
         sanitized_mem = sanitize(mem_text, mem_classification)
-        lines.append(f"- {sanitized_mem.text}")
+        lines.append(f"- {_strip_urls(sanitized_mem.text)}")
         simple_sources.append({
             "memory": mem_text,
             "score": round(hit.score, 3),
@@ -71,6 +81,9 @@ def _build_context(item: UserInput, current_user, resolved_matter):
         system_prompt = (
             "You are a helpful Personal OS with access to the user's stored memories.\n"
             "Answer the user's question using ONLY the memories provided below.\n"
+            "Answer naturally and concisely, in your own words — do NOT quote "
+            "memories verbatim, and do NOT include URLs, file paths, IDs, or "
+            "timestamps unless the user asked for them.\n"
             "If the memories don't contain enough information to answer, say "
             "\"I don't have enough context stored about that yet.\"\n"
             "Do not invent, infer, or add information beyond what is in the memories.\n\n"
