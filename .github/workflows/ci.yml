@@ -39,9 +39,7 @@ jobs:
         run: bash scripts/lint_imports.sh
 
       - name: Run tests
+        # Test env (ENGRAM_USER_ID, AUDIT_HMAC_SECRET, ENGRAM_API_KEY) is owned
+        # by tests/conftest.py via setdefault. Do NOT set them here — real env
+        # vars win over setdefault, and tests assert on conftest's exact values.
         run: pytest tests/ -v --tb=short
-        env:
-          # conftest sets these via setdefault — listed here so CI logs show intent
-          AUDIT_HMAC_SECRET: ci-test-hmac-secret-not-used-in-production
-          ENGRAM_API_KEY: ""
-          ENGRAM_USER_ID: ci-test-user-uuid-0000-000000000001
