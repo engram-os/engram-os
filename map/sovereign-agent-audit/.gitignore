@@ -1,9 +1,0 @@
-.venv/
-.pycache/
-__pycache__/
-.dashboard.pid
-logs/*
-!logs/.gitkeep
-outputs/latest/*
-!outputs/latest/.gitkeep
-dist/
