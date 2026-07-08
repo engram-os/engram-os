@@ -28,12 +28,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('config/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('config/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
       - name: Install dependencies
-        run: pip install -r config/requirements.txt
+        # requirements-dev pulls in runtime deps via -r, plus pytest.
+        # Runtime requirements.txt alone has no test runner — installing
+        # only it makes this job fail at 'pytest: command not found'.
+        run: pip install -r config/requirements-dev.txt
 
       - name: Gateway bypass lint
         run: bash scripts/lint_imports.sh
