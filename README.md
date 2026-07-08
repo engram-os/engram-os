@@ -13,6 +13,7 @@
   [![Audit Trail](https://img.shields.io/badge/Audit-HMAC_chain-FF5722?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-198_passing-success?style=flat-square)]()
   [![License](https://img.shields.io/badge/License-MIT-F7DF1E?style=flat-square)](https://opensource.org/license/mit)
+  [![Discussions](https://img.shields.io/badge/Community-Discussions-D97757?style=flat-square&logo=github&logoColor=white)](https://github.com/engram-os/engram-os/discussions)
 
 </div>
 
@@ -23,6 +24,23 @@ Engram is a **local-first AI operating system**. It remembers what you tell it, 
 <p align="center">
   <img src="screenshots/dashboard.png" alt="The Engram dashboard — everything you tell it stays on this machine" width="820" />
 </p>
+
+---
+
+## How it's different
+
+A lot of AI tools say "local-first." Usually that means your *files* stay local — while transcription, voice, analytics, and the model itself are cloud APIs. Engram means it literally. And because promises are cheap, every claim below comes with the command that checks it:
+
+| Claim | Verify it yourself |
+|---|---|
+| **The model runs on your machine** | There are no LLM API keys anywhere in this codebase — search it. Inference is your own Ollama: `curl localhost:11434/api/tags` |
+| **No hidden network calls** | `grep -rn "import requests" --include="*.py" .` → exactly one file, `core/network_gateway.py`, an allowlisted gateway. CI fails the build if a second ever appears |
+| **No telemetry, no analytics** | No PostHog, no Sentry, no tracking pixel. The dependency lists are short — read them: `config/requirements.txt`, `dashboard/package.json` |
+| **Memories are encrypted at rest** | `core/memory_client.py` Fernet-encrypts every payload before Qdrant sees a byte. Steal the DB volume, get ciphertext |
+| **Agent actions are tamper-evident** | `curl localhost:8000/api/audit/verify` re-computes the HMAC chain over every action ever logged |
+| **It works with the network unplugged** | Turn off Wi-Fi. Ask it something. That's the whole test |
+
+If you want an AI coworker that's *stored* locally but *thinks* in someone else's cloud, there are polished options. Engram is for the other case: the one where "private" has to survive an audit, not a marketing page.
 
 ---
 
@@ -39,7 +57,16 @@ ollama pull llama3.1:latest
 ollama pull nomic-embed-text:latest
 ```
 
-**Install & run**
+**Install & run — one command**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/engram-os/engram-os/main/scripts/install.sh | bash
+```
+
+The installer checks Docker/Python/Ollama, pulls missing models, clones the repo, and starts everything. It's idempotent — safe to re-run. (Prefer to read scripts before piping them to bash? Good instinct — [it's right here](scripts/install.sh).)
+
+<details>
+<summary><strong>Or step by step</strong></summary>
 
 ```bash
 # 1. Clone
@@ -51,6 +78,8 @@ chmod +x scripts/setup.sh && ./scripts/setup.sh
 # 3. Launch everything
 ./scripts/start.sh
 ```
+
+</details>
 
 That's it. After startup:
 
@@ -289,6 +318,14 @@ PYTHONPATH=$(pwd) venv/bin/python sensors/ingestor.py
 ```
 
 Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). Please run the tests and `scripts/lint_imports.sh` before opening a PR.
+
+---
+
+## Community
+
+- 💬 **[GitHub Discussions](https://github.com/engram-os/engram-os/discussions)** — questions, ideas, setups, show & tell
+- 🐛 **[Issues](https://github.com/engram-os/engram-os/issues)** — bugs and feature requests
+- 🌐 **[engram-os.com](https://engram-os.com)** — docs, guides, changelog
 
 ---
 
