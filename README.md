@@ -25,6 +25,12 @@ Engram is a **local-first AI operating system**. It remembers what you tell it, 
   <img src="screenshots/dashboard.png" alt="The Engram dashboard — everything you tell it stays on this machine" width="820" />
 </p>
 
+**Here's the whole loop, with Wi-Fi off the entire time** — drop a file, ask about it, get an answer that cites the exact memory it came from:
+
+<p align="center">
+  <img src="screenshots/demo.gif" alt="48-second demo: Wi-Fi turned off, a lease document dropped into the watched inbox, a question answered by local Llama 3.1 with cited sources" width="820" />
+</p>
+
 ---
 
 ## How it's different
