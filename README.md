@@ -65,6 +65,8 @@ ollama pull nomic-embed-text:latest
 
 **Install & run — one command**
 
+Heads up: first run pulls **~5GB of model weights** (Llama 3.1 8B + the embedding model) via Ollama — everything after that is instant and offline.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/engram-os/engram-os/main/scripts/install.sh | bash
 ```
